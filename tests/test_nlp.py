@@ -1,4 +1,4 @@
-from utils.nlp import keyword_frequency, contains_all_keywords, top_keywords
+from src.utils.nlp import keyword_frequency, contains_all_keywords, top_keywords
 
 
 def test_keyword_frequency_counts_words():

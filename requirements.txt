@@ -29,3 +29,4 @@ openai==1.100.2
 
 # Testing
 pytest==8.3.5
+pytest-cov==5.0.0

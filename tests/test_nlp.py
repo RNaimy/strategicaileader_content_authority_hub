@@ -20,3 +20,21 @@ def test_top_keywords_orders_desc():
     pairs = top_keywords(text, ["growth", "seo", "loops"], top_n=2)
     assert pairs[0][0] == "growth" and pairs[0][1] == 2
     assert len(pairs) == 2
+
+
+def test_contains_all_keywords_ignores_empty_and_returns_true():
+    # No meaningful keywords: should be considered satisfied
+    assert contains_all_keywords("anything at all", []) is True
+    assert contains_all_keywords("still fine", ["", None, "   "]) is True
+
+
+def test_keyword_frequency_handles_none_and_empty_keywords():
+    # None text and empty/None keywords shouldn't blow up
+    freq = keyword_frequency(None, ["growth", None, ""])
+    # We only assert the meaningful key; empty/None are normalized away
+    assert freq["growth"] == 0
+
+
+def test_top_keywords_respects_top_n_limit():
+    pairs = top_keywords("alpha alpha beta", ["alpha", "beta", "gamma"], top_n=1)
+    assert pairs == [("alpha", 2)]

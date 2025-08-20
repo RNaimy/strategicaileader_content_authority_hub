@@ -1,0 +1,20 @@
+{
+  "brands": [
+    {
+      "key": "nokey"
+    },
+    {
+      "key": "dup",
+      "name": "Dup Brand"
+    },
+    {
+      "key": "valid",
+      "name": "Valid Name"
+    },
+    {
+      "key": "strategicaileader",
+      "name": "Strategic AI Leader",
+      "site_url": "https://www.strategicaileader.com"
+    }
+  ]
+}

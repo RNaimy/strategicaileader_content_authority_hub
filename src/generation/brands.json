@@ -1,0 +1,58 @@
+{
+  "liasflowers": {
+    "key": "liasflowers",
+    "slug": "liasflowers",
+    "name": "Lia\u2019s Flowers",
+    "site_url": "https://www.example.com",
+    "mission": "Deliver memorable floral moments with modern design and neighborly care.",
+    "vision": "Become the go-to local brand for effortless, elegant floral gifting.",
+    "voice": "Warm, friendly, delightful. Keep it simple and charming.",
+    "audience": "Local gift-givers, event planners, and boutique hotels.",
+    "categories": [
+      "Gifting",
+      "Weddings",
+      "Events",
+      "Seasonal"
+    ],
+    "default_keywords": [
+      "same-day delivery",
+      "wedding florals",
+      "seasonal bouquets"
+    ],
+    "prompt_defaults": {
+      "article": {
+        "tone": "warm, neighborly, helpful, local-first",
+        "length_words": "1000-1500",
+        "cta_style": "Shop the latest bouquets or call for custom orders"
+      },
+      "linkedin": {
+        "tone": "friendly, concise, visual",
+        "length_words": "100-160",
+        "cta_style": "Follow for seasonal drops and wedding inspo"
+      }
+    },
+    "calendar": {
+      "cadence": "biweekly",
+      "preferred_days": [
+        "Mon",
+        "Fri"
+      ],
+      "publish_window": "16:00-20:00 UTC"
+    },
+    "meta": {
+      "social": {
+        "instagram": "https://www.instagram.com/liasflowers"
+      },
+      "colors": {
+        "primary": "#C2410C",
+        "secondary": "#10B981"
+      },
+      "service_area": [
+        "Downtown",
+        "Midtown",
+        "Uptown"
+      ],
+      "price_tier": "mid"
+    }
+  }
+}

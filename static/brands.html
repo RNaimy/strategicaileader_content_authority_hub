@@ -1,0 +1,224 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Brands Admin</title>
+  <style>
+    body { font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 2rem; }
+    form, .row { max-width: 800px; margin-bottom: 1rem; }
+    label { display:block; margin-top: .5rem; }
+    input, textarea { width: 100%; padding: .5rem; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .actions { margin-top: 1rem; display:flex; gap:.5rem; }
+    .status { margin: .5rem 0 1rem; padding:.5rem .75rem; background:#eef6ff; border:1px solid #cde3ff; border-radius:6px; display:none; white-space:pre-wrap; }
+    pre { background:#f6f8fa; padding:1rem; overflow:auto; }
+  </style>
+</head>
+<body>
+  <h1>Brand Profiles</h1>
+  <div id="status" class="status"></div>
+
+  <div class="row">
+    <button id="load">Reload List</button>
+    <select id="brandList"></select>
+    <button id="loadOne">Load Selected</button>
+    <button id="deleteOne">Delete</button>
+  </div>
+
+  <form id="brandForm">
+    <div class="grid">
+      <div>
+        <label>Key <small>(lowercase, underscores)</small>
+          <input id="key" required />
+        </label>
+      </div>
+      <div>
+        <label>Name
+          <input id="name" required />
+        </label>
+      </div>
+    </div>
+
+    <label>Site URL
+      <input id="site_url" placeholder="https://example.com" required />
+    </label>
+
+    <label>Mission
+      <textarea id="mission" rows="4" required></textarea>
+    </label>
+
+    <label>Vision
+      <textarea id="vision" rows="4" required></textarea>
+    </label>
+
+    <label>Voice
+      <textarea id="voice" rows="3"></textarea>
+    </label>
+
+    <label>Audience
+      <textarea id="audience" rows="3"></textarea>
+    </label>
+
+    <label>Categories (comma-separated)
+      <input id="categories" />
+    </label>
+
+    <label>Default Keywords (comma-separated)
+      <input id="default_keywords" />
+    </label>
+
+    <label>Meta (JSON)
+      <textarea id="meta" rows="3">{}</textarea>
+    </label>
+
+    <div class="actions">
+      <button type="submit">Create / Update</button>
+    </div>
+  </form>
+
+  <h3>API Response</h3>
+  <pre id="out"></pre>
+
+<script>
+// Prefer same-origin by default; fallback to localhost if file opened directly
+const API = (location.origin && location.origin !== "null") ? `${location.origin}/brands` : "http://localhost:8000/brands";
+
+const $ = (id) => document.getElementById(id);
+const statusBox = $("status");
+function setStatus(msg, isError=false) {
+  if (!statusBox) return;
+  statusBox.style.display = msg ? "block" : "none";
+  statusBox.style.background = isError ? "#ffecec" : "#eef6ff";
+  statusBox.style.borderColor = isError ? "#ffb3b3" : "#cde3ff";
+  statusBox.textContent = msg || "";
+}
+function makeOption(value, label) {
+  const o = document.createElement("option");
+  o.value = value;
+  o.textContent = label;
+  return o;
+}
+
+const out = $("out");
+const inputs = ["key","name","site_url","mission","vision","voice","audience","categories","default_keywords","meta"]
+  .reduce((acc, id) => (acc[id]=$(`#${id}`), acc), {});
+
+function serialize() {
+  let meta = {};
+  try { meta = inputs.meta.value.trim() ? JSON.parse(inputs.meta.value) : {}; }
+  catch { alert("Meta must be valid JSON"); throw new Error("bad json"); }
+
+  const toList = (s) => (s || "").split(",").map(x => x.trim()).filter(Boolean);
+
+  return {
+    key: inputs.key.value.trim(),
+    name: inputs.name.value.trim(),
+    site_url: inputs.site_url.value.trim(),
+    mission: inputs.mission.value.trim(),
+    vision: inputs.vision.value.trim(),
+    voice: inputs.voice.value.trim(),
+    audience: inputs.audience.value.trim(),
+    categories: toList(inputs.categories.value),
+    default_keywords: toList(inputs.default_keywords.value),
+    meta
+  };
+}
+
+function fillForm(b) {
+  inputs.key.value = b.key || "";
+  inputs.name.value = b.name || "";
+  inputs.site_url.value = b.site_url || "";
+  inputs.mission.value = b.mission || "";
+  inputs.vision.value = b.vision || "";
+  inputs.voice.value = b.voice || "";
+  inputs.audience.value = b.audience || "";
+  inputs.categories.value = (b.categories||[]).join(", ");
+  inputs.default_keywords.value = (b.default_keywords||[]).join(", ");
+  inputs.meta.value = JSON.stringify(b.meta || {}, null, 2);
+}
+
+async function listBrands() {
+  try {
+    setStatus("Loading brands…");
+    const r = await fetch(API);
+    if (!r.ok) throw new Error(`GET /brands failed: ${r.status} ${r.statusText}`);
+    const data = await r.json();
+    const sel = $("brandList");
+    sel.innerHTML = "";
+    data.forEach(b => sel.appendChild(makeOption(b.key, `${b.name} (${b.key})`)));
+    out.textContent = JSON.stringify(data, null, 2);
+    setStatus(`Loaded ${data.length} brands.`);
+  } catch (err) {
+    setStatus(String(err), true);
+    console.error(err);
+  }
+}
+
+$("load").onclick = listBrands;
+
+$("loadOne").onclick = async () => {
+  try {
+    const key = $("brandList").value;
+    if (!key) return setStatus("Select a brand first.", true);
+    const r = await fetch(`${API}/${encodeURIComponent(key)}`);
+    if (!r.ok) throw new Error(`GET /brands/${key} failed: ${r.status} ${r.statusText}`);
+    const data = await r.json();
+    fillForm(data);
+    out.textContent = JSON.stringify(data, null, 2);
+    setStatus(`Loaded "${key}".`);
+  } catch (err) {
+    setStatus(String(err), true);
+    console.error(err);
+  }
+};
+
+$("deleteOne").onclick = async () => {
+  try {
+    const key = $("brandList").value;
+    if (!key) return setStatus("Select a brand first.", true);
+    if (!confirm(`Delete brand "${key}"?`)) return;
+    const r = await fetch(`${API}/${encodeURIComponent(key)}`, { method: "DELETE" });
+    if (!(r.status === 204 || r.ok)) throw new Error(`DELETE /brands/${key} failed: ${r.status} ${r.statusText}`);
+    out.textContent = r.status === 204 ? "Deleted." : await r.text();
+    setStatus(`Deleted "${key}".`);
+    await listBrands();
+    // if we deleted the one currently in the form, clear it
+    if (inputs.key.value.trim() === key) fillForm({});
+  } catch (err) {
+    setStatus(String(err), true);
+    console.error(err);
+  }
+};
+
+$("brandForm").onsubmit = async (e) => {
+  e.preventDefault();
+  try {
+    const body = serialize();
+    if (!body.key) return setStatus("Key is required.", true);
+    const existing = $("brandList").value;
+    const isUpdate = existing === body.key;
+    const method = isUpdate ? "PUT" : "POST";
+    const url = isUpdate ? `${API}/${encodeURIComponent(body.key)}` : API;
+    const r = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error(`${method} ${url} failed: ${r.status} ${r.statusText}`);
+    const data = await r.json();
+    out.textContent = JSON.stringify(data, null, 2);
+    setStatus(isUpdate ? `Updated "${body.key}".` : `Created "${body.key}".`);
+    await listBrands();
+    // After create, select the new brand in the list
+    $("brandList").value = body.key;
+  } catch (err) {
+    setStatus(String(err), true);
+    console.error(err);
+  }
+};
+
+listBrands();
+setTimeout(() => setStatus(""), 1500);
+</script>
+</body>
+</html>

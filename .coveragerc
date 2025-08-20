@@ -2,22 +2,22 @@
 branch = True
 source =
     src
+omit =
+    */venv/*
+    */site-packages/*
+    tests/*
+    setup.py
+    src/app.py
+    src/utils/db.py
 
 [report]
+fail_under = 85
 show_missing = True
 skip_covered = False
-skip_empty = False
-precision = 2
-fail_under = 0
-omit =
-    */migrations/*
-    */settings/*
-    */tests/*
-    venv/*
-    **/__init__.py
 exclude_lines =
     pragma: no cover
     if __name__ == "__main__":
+    raise NotImplementedError
 
 [html]
-directory = htmlcov
+directory = coverage_html_report

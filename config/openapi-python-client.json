@@ -1,0 +1,11 @@
+
+
+{
+  "project_name_override": "strategicaileader_client",
+  "package_name": "strategicaileader_client",
+  "class_name": "StrategicAILeaderClient",
+  "use_orjson": true,
+  "field_prefix": "api_",
+  "post_hooks": [],
+  "version": "0.1.0"
+}

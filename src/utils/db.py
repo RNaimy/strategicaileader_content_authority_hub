@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import atexit
 from contextlib import contextmanager
 from typing import Iterator
 
@@ -12,6 +13,19 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, text, event
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
 from sqlalchemy.engine import Engine
+
+# ---------------------------------------------------------------------------
+# Helper to dispose SQLAlchemy engine safely (for interpreter shutdown/reconfig)
+def _dispose_current_engine() -> None:
+    """Dispose the active SQLAlchemy engine if possible.
+    Helps ensure DB connections are closed at interpreter shutdown or when reconfiguring.
+    """
+    global engine
+    try:
+        engine.dispose()  # type: ignore[name-defined]
+    except Exception:
+        # If engine isn't defined yet or already disposed, ignore.
+        pass
 
 # ---------------------------------------------------------------------------
 # Unified database setup for SQLite (local) and Postgres (Supabase)
@@ -58,6 +72,8 @@ def _make_engine(url: str, *, echo: bool) -> Engine:
     return eng
 
 engine = _make_engine(DATABASE_URL, echo=ECHO_SQL)
+# Ensure all pooled connections are closed at process exit to avoid ResourceWarning
+atexit.register(_dispose_current_engine)
 
 # Session factory
 SessionLocal = sessionmaker(
@@ -82,6 +98,8 @@ def reconfigure_database(url: str | None = None, *, echo: bool | None = None) ->
         DATABASE_URL = url
     if echo is not None:
         ECHO_SQL = bool(echo)
+    # Close existing connections before swapping engines
+    _dispose_current_engine()
     engine = _make_engine(DATABASE_URL, echo=ECHO_SQL)
     SessionLocal.configure(bind=engine)
 

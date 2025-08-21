@@ -1,0 +1,6 @@
+# This project builds with PEP 517/pyproject.toml.
+# Keep this file as a harmless no-op for legacy tools that might try to execute it.
+
+if __name__ == "__main__":
+    # Do nothing and exit successfully.
+    pass

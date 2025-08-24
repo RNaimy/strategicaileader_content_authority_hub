@@ -1,6 +1,6 @@
 import logging
 from src.utils import db
-from src.models import Base
+from src.db.models import Base
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

@@ -15,6 +15,9 @@ Tests monkeypatch `BRANDS_JSON` to point at a temp file containing `{"brands": [
 from __future__ import annotations
 
 from fastapi import APIRouter, FastAPI, HTTPException, Response
+from fastapi import status
+from fastapi.responses import JSONResponse
+import re
 from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional
 from pathlib import Path
@@ -68,7 +71,9 @@ def _read_store() -> Dict[str, List[Dict[str, Any]]]:
 
 
 def _write_store(data: Dict[str, List[Dict[str, Any]]]) -> None:
-    Path(BRANDS_JSON).write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    path = Path(BRANDS_JSON)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def _find_index(brands: List[Dict[str, Any]], key: str) -> int:
@@ -78,26 +83,50 @@ def _find_index(brands: List[Dict[str, Any]], key: str) -> int:
     return -1
 
 
+def _validate_key(key: str) -> None:
+    """Enforce a simple key format for stability across environments."""
+    if not key or not isinstance(key, str):
+        raise HTTPException(status_code=400, detail="Key is required")
+    if not re.match(r"^[A-Za-z0-9._-]+$", key):
+        raise HTTPException(status_code=400, detail="Key may contain letters, numbers, dot, underscore, or dash")
+
+
 # --------------------------- router --------------------------- #
 
 router = APIRouter(prefix="/brands", tags=["brands"])
 
 
 @router.get("/", summary="List brands")
-def list_brands() -> Dict[str, List[Dict[str, Any]]]:
-    """Return the entire collection in a stable envelope.
-    The test accepts either a raw list or an envelope; we use the envelope.
+def list_brands(q: Optional[str] = None, category: Optional[str] = None) -> Dict[str, List[Dict[str, Any]]]:
+    """Return the collection (enveloped) with optional filtering:
+    - q: case-insensitive substring match against `key`, `name`, or `audience`
+    - category: requires the value to be present in `categories`
+    Results are sorted by `key` ascending for stability.
     """
     data = _read_store()
-    return {"brands": data.get("brands", [])}
+    items = data.get("brands", [])
+    qnorm = (q or "").strip().lower()
+    catnorm = (category or "").strip().lower()
+
+    def keep(b: Dict[str, Any]) -> bool:
+        ok = True
+        if qnorm:
+            hay = " ".join([str(b.get("key","")), str(b.get("name","")), str(b.get("audience",""))]).lower()
+            ok = qnorm in hay
+        if ok and catnorm:
+            cats = [c.lower() for c in (b.get("categories") or [])]
+            ok = catnorm in cats
+        return ok
+
+    filtered = [b for b in items if keep(b)]
+    filtered.sort(key=lambda x: (str(x.get("key", "")).lower()))
+    return {"brands": filtered}
 
 
-@router.post("/", status_code=201, summary="Create or upsert a brand")
-def create_brand(brand: Brand) -> Brand:
-    """Create a new brand. If the key already exists, treat it as an upsert
-    and return the updated brand with 200. This makes the endpoint tolerant
-    to repeated test runs.
-    """
+@router.post("/", summary="Create or upsert a brand")
+def create_brand(brand: Brand):
+    """Create a new brand. If the key already exists, upsert and return 200."""
+    _validate_key(brand.key)
     data = _read_store()
     brands = data.setdefault("brands", [])
     idx = _find_index(brands, brand.key)
@@ -105,16 +134,17 @@ def create_brand(brand: Brand) -> Brand:
     if idx == -1:
         brands.append(payload)
         _write_store(data)
-        return brand
-    # Upsert existing (returning 200 will be handled by FastAPI if we raise no error
-    # but we explicitly mirror creation code path and just overwrite)
+        # Return 201 on first creation
+        return JSONResponse(status_code=status.HTTP_201_CREATED, content=brand.model_dump())
+    # Upsert existing
     brands[idx].update(payload)
     _write_store(data)
-    return Brand(**brands[idx])
+    return JSONResponse(status_code=status.HTTP_200_OK, content=Brand(**brands[idx]).model_dump())
 
 
 @router.get("/{key}", summary="Get a brand by key")
 def get_brand(key: str) -> Brand:
+    _validate_key(key)
     data = _read_store()
     brands = data.get("brands", [])
     idx = _find_index(brands, key)
@@ -125,6 +155,7 @@ def get_brand(key: str) -> Brand:
 
 @router.put("/{key}", summary="Update a brand (partial)")
 def update_brand(key: str, upd: BrandUpdate) -> Brand:
+    _validate_key(key)
     data = _read_store()
     brands = data.get("brands", [])
     idx = _find_index(brands, key)
@@ -139,6 +170,7 @@ def update_brand(key: str, upd: BrandUpdate) -> Brand:
 
 @router.delete("/{key}", status_code=204, summary="Delete a brand", response_class=Response)
 def delete_brand(key: str) -> Response:
+    _validate_key(key)
     data = _read_store()
     brands = data.get("brands", [])
     idx = _find_index(brands, key)

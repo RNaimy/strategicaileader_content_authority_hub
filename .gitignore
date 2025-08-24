@@ -71,16 +71,14 @@ logs/
 # SQLite / DB files
 *.db
 *.sqlite3
+data/*.db*
 
 # OS-specific files
 .DS_Store
 Thumbs.db
 
-# pytest coverage reports
+# Test / coverage
 htmlcov/
 .coverage
+.coverage.*
 .pytest_cache/
-# DB state files
-*.db
-*.db-*
-data/*.db*

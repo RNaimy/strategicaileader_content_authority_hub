@@ -1,0 +1,24 @@
+
+
+# NOTE: GitHub reads CODEOWNERS from one of these locations (in order):
+#   1) .github/CODEOWNERS   <— recommended
+#   2) CODEOWNERS (repo root)
+#   3) docs/CODEOWNERS
+# Keeping a copy here for visibility, but please also add the same file at `.github/CODEOWNERS`.
+
+# Default owners for everything in the repo
+* @RNaimy
+
+# App / API code
+/src/ @RNaimy
+
+# Infrastructure & workflows
+/.github/ @RNaimy
+/.github/workflows/ @RNaimy
+
+# Tests
+/tests/ @RNaimy
+
+# Documentation
+/README.md @RNaimy
+/docs/ @RNaimy

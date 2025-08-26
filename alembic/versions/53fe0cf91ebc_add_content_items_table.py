@@ -1,0 +1,54 @@
+"""add content_items table
+
+Revision ID: 53fe0cf91ebc
+Revises: bdb2e742e062
+Create Date: 2025-08-22 13:20:56.566116
+
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+
+# revision identifiers, used by Alembic.
+revision: str = '53fe0cf91ebc'
+down_revision: Union[str, Sequence[str], None] = 'bdb2e742e062'
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    """Upgrade schema."""
+    # Ensure `sites` table exists before adding FK to it (fresh Postgres may not have it yet)
+    conn = op.get_bind()
+    insp = sa.inspect(conn)
+
+    # Create a minimal `sites` table if it's missing so the FK below can be created safely.
+    # This is idempotent with prior environments where `sites` already exists.
+    if "sites" not in insp.get_table_names():
+        op.create_table(
+            "sites",
+            sa.Column("id", sa.Integer(), primary_key=True, nullable=False),
+            sa.Column("name", sa.String(length=255), nullable=False),
+            sa.Column("domain", sa.String(length=255), nullable=False),
+            sa.Column("created_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("now()"), nullable=False),
+            sa.Column("updated_at", sa.TIMESTAMP(timezone=True), server_default=sa.text("now()"), nullable=False),
+            sa.UniqueConstraint("domain", name="uq_sites_domain"),
+        )
+
+    # Create base content_items table (minimal columns; later migrations add timestamps, indexes, meta_description, and embedding/cluster_id)
+    op.create_table(
+        "content_items",
+        sa.Column("id", sa.Integer(), primary_key=True, nullable=False),
+        sa.Column("site_id", sa.Integer(), sa.ForeignKey("sites.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("url", sa.Text(), nullable=False),
+        sa.Column("title", sa.String(length=500), nullable=True),
+        sa.Column("content", sa.Text(), nullable=True),
+        sa.UniqueConstraint("site_id", "url", name="uq_content_site_url"),
+    )
+
+
+def downgrade() -> None:
+    """Downgrade schema."""
+    op.drop_table("content_items")

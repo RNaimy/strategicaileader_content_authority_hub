@@ -1,16 +1,33 @@
-
-
+# src/api/__init__.py
 """API package initialization.
 
-This module exposes shared routers for easy import elsewhere, e.g.:
+Exposes shared routers for easy import elsewhere, e.g.:
 
-    from api import brands_router
-
+    from src.api import content_router, clustering_router, inventory_router, scraper_router, get_routers
 """
+
 from __future__ import annotations
 
-# Re-export the Brands router so app.py can import cleanly
-from .brands_api import router as brands_router  # noqa: F401
+# Import routers
+from .clustering_api import router as clustering_router
+from .content_api import router as content_router
+from .inventory_api import router as inventory_router
+from .scraper_api import router as scraper_router
 
-__all__ = ["brands_router"]
-__version__ = "0.1.0"
+__all__ = [
+    "clustering_router",
+    "content_router",
+    "inventory_router",
+    "scraper_router",
+    "get_routers",
+]
+
+def get_routers():
+    """Return all routers as a list.
+
+    Useful in app startup code, e.g.:
+
+        for r in get_routers():
+            app.include_router(r)
+    """
+    return [clustering_router, content_router, inventory_router, scraper_router]

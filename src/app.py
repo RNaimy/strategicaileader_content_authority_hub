@@ -20,4 +20,4 @@ app.add_middleware(
 app.include_router(brands_router)
 
 # Static hosting (so /brands.html works)
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+app.mount("/", StaticFiles(directory="static", html=True), name="static")// touch # or change any file

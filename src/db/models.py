@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON, Float, func, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON, Float, Numeric, func, UniqueConstraint, Index
 from sqlalchemy.orm import relationship, declarative_base
 
 Base = declarative_base()
@@ -12,8 +12,9 @@ class Site(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    # Relationship
+    # Relationships
     content_items = relationship("ContentItem", back_populates="site")
+    analytics_snapshots = relationship("AnalyticsSnapshot", back_populates="site")
 
     def __repr__(self):
         return f"<Site(domain={self.domain})>"
@@ -69,3 +70,53 @@ class ContentItem(Base):
 
     def __repr__(self):
         return f"<ContentItem(url={self.url}, site={self.site_id})>"
+
+
+# AnalyticsSnapshot model (aligned with migration ce01e106f155)
+class AnalyticsSnapshot(Base):
+    __tablename__ = "analytics_snapshots"
+    __table_args__ = (
+        UniqueConstraint("site_id", "captured_at", "source", name="uq_snapshot_site_capture_source"),
+        Index("ix_analytics_snapshots_site_id", "site_id"),
+        Index("ix_analytics_snapshots_captured_at", "captured_at"),
+        Index("ix_analytics_snapshots_source", "source"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    site_id = Column(Integer, ForeignKey("sites.id", ondelete="CASCADE"), nullable=False)
+
+    # snapshot metadata
+    captured_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    source = Column(String(30), nullable=False)
+
+    # reporting window
+    period_start = Column(DateTime(timezone=True), nullable=True)
+    period_end = Column(DateTime(timezone=True), nullable=True)
+
+    # source/system counts
+    source_row_count = Column(Integer, nullable=True)
+    content_items_count = Column(Integer, nullable=True)
+    pages_indexed = Column(Integer, nullable=True)
+    indexed_pct = Column(Float, nullable=True)
+
+    # performance metrics
+    average_position = Column(Float, nullable=True)
+    ctr = Column(Float, nullable=True)
+    clicks = Column(Integer, nullable=True)
+    impressions = Column(Integer, nullable=True)
+    organic_sessions = Column(Integer, nullable=True)
+    conversions = Column(Integer, nullable=True)
+    revenue = Column(Numeric(12, 2), nullable=True)
+
+    # misc
+    notes = Column(JSON, nullable=True)
+
+    # bookkeeping
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # relationships
+    site = relationship("Site", back_populates="analytics_snapshots")
+
+    def __repr__(self):
+        return f"<AnalyticsSnapshot(site={self.site_id}, source={self.source}, captured_at={self.captured_at})>"

@@ -5,7 +5,8 @@ import traceback
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
+from sqlalchemy import or_, func
 
 from src.db.session import get_db
 from src.db.models import ContentItem
@@ -98,10 +99,10 @@ def _serialize_item(item: ContentItem) -> Dict[str, Any]:
 
 class ReembedRequest(BaseModel):
     domain: Optional[str] = Field(default=None, description="Restrict to this site domain")
-    scope: str = Field(default="missing", description="One of: 'missing' or 'all'")
+    scope: str = Field(default="missing", description="One of: 'missing', 'all', or 'single'")
     batch_size: int = Field(default=200, ge=1, le=2000)
     provider: Optional[str] = Field(default=None, description="Override provider by name (if supported)")
-
+    url: Optional[str] = Field(default=None, description="Required if scope is 'single'")
 
 
 @router.get("/health")
@@ -288,13 +289,36 @@ def reembed(req: ReembedRequest, db: Session = Depends(get_db)) -> Dict[str, Any
             pass
 
     if req.scope == "missing":
-        qry = qry.filter((ContentItem.embedding == None) | (ContentItem.embedding == []))  # noqa: E711
+        # Consider NULL or empty JSON array using SQL function for robustness on Postgres
+        qry = qry.filter(
+            or_(
+                ContentItem.embedding.is_(None),
+                func.json_array_length(ContentItem.embedding) == 0,
+            )
+        )
     elif req.scope == "all":
         pass
+    elif req.scope == "single":
+        if not req.url:
+            raise HTTPException(status_code=400, detail="url must be provided when scope is 'single'")
+        qry = qry.filter(ContentItem.url == req.url)
     else:
-        raise HTTPException(status_code=400, detail="scope must be 'missing' or 'all'")
+        raise HTTPException(status_code=400, detail="scope must be one of: 'missing', 'all', or 'single'")
+
+    # Load only the columns we need so we don't require optional columns that may not exist in older DBs
+    qry = qry.options(load_only(ContentItem.id, ContentItem.title, ContentItem.url, ContentItem.embedding))
 
     total = qry.count()
+    if total == 0:
+        return {
+            "ok": True,
+            "requested_scope": req.scope,
+            "domain": req.domain,
+            "provider": req.provider or os.getenv("EMBEDDING_PROVIDER", "") or "hash-fallback",
+            "batch_size": req.batch_size,
+            "total_matched": 0,
+            "updated": 0,
+        }
     updated = 0
 
     # Stream in batches
@@ -315,8 +339,17 @@ def reembed(req: ReembedRequest, db: Session = Depends(get_db)) -> Dict[str, Any
             raise HTTPException(status_code=500, detail=f"Embedding provider failed: {exc}")
         # Assign and stage
         for it, vec in zip(batch, vecs):
-            it.embedding = vec
-        db.commit()
+            # Ensure Postgres JSON column receives a plain list[float]
+            try:
+                it.embedding = list(map(float, vec))
+            except Exception:
+                # As a fallback, coerce to list if vec is a numpy-like array
+                it.embedding = [float(x) for x in list(vec)]
+        try:
+            db.commit()
+        except Exception as exc:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"DB commit failed: {exc}")
         updated += len(batch)
         offset += len(batch)
 

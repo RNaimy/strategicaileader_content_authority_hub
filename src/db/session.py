@@ -1,5 +1,5 @@
 
-
+#session.py
 """Database session and engine setup.
 
 This module provides:
@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------------------------------------------
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/app.db")
 IS_SQLITE = DATABASE_URL.startswith("sqlite")
+logger.debug("DB backend: %s | url=%s", "sqlite" if IS_SQLITE else "postgres/other", DATABASE_URL)
 
 # Ensure directory exists for SQLite file paths like sqlite:///./data/app.db
 if IS_SQLITE:
@@ -55,17 +56,26 @@ engine = create_engine(
 )
 
 # Apply useful SQLite PRAGMAs for concurrency & integrity
-@event.listens_for(Engine, "connect")
+# Bind the listener to the concrete engine (not the Engine class) so it never
+# fires for non-SQLite engines like Postgres.
+@event.listens_for(engine, "connect")
 def _set_sqlite_pragma(dbapi_connection, connection_record):  # type: ignore[override]
     if not IS_SQLITE:
+        # Extra guard: if this ever fires on a non-sqlite engine, do nothing.
         return
     cursor = dbapi_connection.cursor()
     try:
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.execute("PRAGMA synchronous=NORMAL")
         cursor.execute("PRAGMA foreign_keys=ON")
+    except Exception as e:
+        # Don't crash app startup if PRAGMA isn't supported; just log.
+        logger.warning("SQLite PRAGMA setup skipped due to error: %s", e)
     finally:
-        cursor.close()
+        try:
+            cursor.close()
+        except Exception:
+            pass
 
 
 # --------------------------------------------------------------------------------------

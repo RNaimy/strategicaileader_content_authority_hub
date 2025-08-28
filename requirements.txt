@@ -5,3 +5,9 @@ uvicorn==0.30.1
 python-dotenv==1.0.1
 pydantic==2.9.2
 pytest==8.3.2
+
+google-api-python-client==2.149.0
+google-auth==2.35.0
+google-auth-oauthlib==1.2.1
+google-analytics-data==0.18.12
+google-searchconsole==0.2.1

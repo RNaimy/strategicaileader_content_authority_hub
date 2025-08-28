@@ -15,6 +15,10 @@ import json
 import os
 import traceback
 from urllib.parse import urlparse
+import re
+import math
+from collections import Counter, defaultdict
+from itertools import islice
 
 """
 Clustering API:
@@ -247,6 +251,129 @@ def _centroids(assigns: List[int], vectors: List[List[float]], k: int) -> List[L
 
 
 # ----------------------------
+# Labeling helpers (TF-IDF without sklearn)
+# ----------------------------
+
+_STOPWORDS = {
+    # generic stopwords
+    "the","a","an","and","or","but","if","then","than","that","this","to","of","on","in","for","with","by","as","at","be","is","are","was","were","it","its","from","into","your","you","we","our","us",
+    # site/brand/common
+    "strategicaileader","strategicaileader.com","leader","leaders","richard","naimy","com","www",
+    # url fragments, generic tokens
+    "http","https",
+    # common marketing / boilerplate fillers that don't help labels
+    "guide","tips","playbook","best","practices","strategy","strategies","framework","intro","introduction",
+}
+
+_token_re = re.compile(r"[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)*")
+
+def _merge_stopwords(extra: Optional[str]) -> set:
+    """Merge built-in stopwords with optional comma/space-separated extras.
+    Example extra: "ai,seo,saas". Returns a lowercase set.
+    """
+    s = set(_STOPWORDS)
+    if extra:
+        # allow comma and/or space separated lists
+        parts = re.split(r"[\s,]+", extra.strip())
+        for p in parts:
+            p = p.strip().lower()
+            if p:
+                s.add(p)
+    return s
+
+def _tokenize(text: str, stopwords: Optional[set] = None) -> List[str]:
+    if not text:
+        return []
+    sw = stopwords or _STOPWORDS
+    toks = [t.lower() for t in _token_re.findall(text)]
+    return [t for t in toks if t not in sw and len(t) >= 2]
+
+def _generate_ngrams(tokens: List[str], n_min: int = 1, n_max: int = 2) -> List[str]:
+    out: List[str] = []
+    L = len(tokens)
+    for n in range(n_min, n_max + 1):
+        for i in range(L - n + 1):
+            ng = " ".join(tokens[i:i+n])
+            out.append(ng)
+    return out
+
+def _tfidf_labels(
+    texts: List[str],
+    top_n: int = 6,
+    min_df: int = 2,
+    max_df_ratio: float = 0.8,
+    ngram_max: int = 2,
+    stopwords: Optional[set] = None,
+    dedupe_substrings: bool = True,
+) -> List[str]:
+    """
+    Build a very small TF-IDF for labeling clusters.
+    - texts: list of documents (strings) in one cluster
+    - min_df: ignore terms that appear in fewer than min_df docs in the cluster
+    - max_df_ratio: ignore terms that appear in more than this fraction of cluster docs
+    - ngram_max: up to 1-gram or 2-gram
+    - stopwords: optional custom stopword set to apply
+    - dedupe_substrings: if True, remove labels that are substrings of higher-ranked labels
+    """
+    if not texts:
+        return []
+    # per-doc term sets for df
+    doc_terms: List[set] = []
+    # global term frequencies across the cluster
+    tf = Counter()
+    for t in texts:
+        toks = _tokenize(t, stopwords=stopwords)
+        ngrams = _generate_ngrams(toks, 1, ngram_max)
+        tf.update(ngrams)
+        doc_terms.append(set(ngrams))
+    # document frequency
+    df = Counter()
+    for st in doc_terms:
+        df.update(st)
+
+    N = max(1, len(texts))
+    # compute TF-IDF score
+    scored: List[Tuple[str, float]] = []
+    for term, tf_count in tf.items():
+        df_count = df[term]
+        if df_count < min_df:
+            continue
+        if df_count / N > max_df_ratio:
+            continue
+        idf = math.log((N + 1) / (df_count + 1)) + 1.0  # smoothed idf
+        score = (tf_count / float(N)) * idf
+        scored.append((term, score))
+    scored.sort(key=lambda x: x[1], reverse=True)
+
+    # take top_n with optional substring de-duplication
+    labels: List[str] = []
+    for term, _ in scored:
+        if len(labels) >= top_n:
+            break
+        if dedupe_substrings and any(term in chosen or chosen in term for chosen in labels):
+            # skip terms that are substrings or superstrings of already-chosen labels
+            continue
+        labels.append(term)
+    return labels
+
+def _nearest_to_centroid(rows: List['ContentItem'], vectors: List[List[float]], assigns: List[int], centroids: List[List[float]], cid: int, take: int = 5) -> List[str]:
+    idxs = [i for i, a in enumerate(assigns) if a == cid]
+    pairs: List[Tuple[float, int]] = []
+    for i in idxs:
+        s = _cosine(vectors[i], centroids[cid])
+        pairs.append((s, i))
+    pairs.sort(key=lambda x: x[0], reverse=True)
+    titles: List[str] = []
+    for _, i in pairs[:take]:
+        ti = getattr(rows[i], "title", None) or ""
+        if ti:
+            titles.append(ti)
+        else:
+            titles.append(rows[i].url)
+    return titles
+
+
+# ----------------------------
 # Response schemas
 # ----------------------------
 
@@ -276,6 +403,21 @@ class LinkSuggestion(BaseModel):
 class LinkSuggestionsResponse(BaseModel):
     domain: str
     suggestions: List[LinkSuggestion]
+
+
+# Cluster topics/labels schemas
+class ClusterTopic(BaseModel):
+    cluster_id: int
+    size: int
+    label_terms: List[str]
+    sample_titles: List[str]
+
+class TopicsResponse(BaseModel):
+    domain: str
+    k: int
+    k_effective: int
+    embedding_dim: int
+    clusters: List[ClusterTopic]
 
 class CommitRequest(BaseModel):
     domain: str
@@ -398,6 +540,7 @@ def preview_clusters(
     k: int = Query(8, ge=1, le=50, description="Number of clusters (default 8)"),
     top_n: int = Query(5, ge=1, le=50, description="Top items to show per cluster"),
     max_items: int = Query(800, ge=1, le=5000, description="Max items to load (protects memory)"),
+    seed: int = Query(42, description="Random seed for KMeans initialization (default 42)"),
     db: Session = Depends(_get_db),
 ):
     try:
@@ -419,7 +562,7 @@ def preview_clusters(
                 detail=("No valid embeddings found for this domain. Ensure 'embedding' contains numeric arrays."),
             )
 
-        assigns = _kmeans(normed, k=k)
+        assigns = _kmeans(normed, k=k, seed=seed)
         k_eff = (max(assigns) + 1) if assigns else 0
         if k_eff == 0:
             raise HTTPException(status_code=400, detail="Clustering produced zero clusters (no data)")
@@ -467,6 +610,109 @@ def preview_clusters(
 
 
 #
+
+#
+# Cluster topics / labels endpoint
+@router.get("/topics", response_model=TopicsResponse)
+def clusters_topics(
+    domain: str = Query(..., description="Site domain to cluster (e.g. strategicaileader.com)"),
+    k: int = Query(8, ge=1, le=50, description="Number of clusters"),
+    top_n: int = Query(6, ge=1, le=20, description="Top label terms per cluster"),
+    samples_per_cluster: int = Query(5, ge=1, le=20, description="Nearest titles to centroid to display"),
+    min_df: int = Query(2, ge=1, le=50, description="Ignore terms that occur in fewer than this many docs per cluster"),
+    max_df_ratio: float = Query(0.8, ge=0.1, le=1.0, description="Ignore terms that occur in more than this fraction of docs"),
+    ngram_max: int = Query(2, ge=1, le=3, description="Use up to this n-gram length"),
+    stopwords_extra: Optional[str] = Query(None, description="Comma/space separated extra stopwords to ignore (e.g. 'ai, seo, saas')"),
+    dedupe_substrings: bool = Query(True, description="If true, remove labels that are substrings/superstrings of higher-ranked labels"),
+    max_items: int = Query(1200, ge=10, le=5000, description="Max items to load (memory guard)"),
+    seed: int = Query(42, description="Random seed for KMeans initialization (default 42)"),
+    db: Session = Depends(_get_db),
+):
+    """
+    Produce human-readable labels per cluster using a simple TF-IDF over titles + meta descriptions.
+    """
+    try:
+        site = _get_site_by_domain(db, domain)
+        if not site:
+            raise HTTPException(status_code=404, detail=f"Site not found for domain '{domain}'")
+
+        rows = (
+            db.query(ContentItem)
+            .filter(ContentItem.site_id == site.id)
+            .filter(ContentItem.embedding.isnot(None))
+            .limit(max_items)
+            .all()
+        )
+        rows, normed = _rows_and_vectors(rows)
+        if not rows or not normed:
+            raise HTTPException(status_code=400, detail="No valid embeddings found for this domain.")
+
+        assigns = _kmeans(normed, k=k, seed=seed)
+        k_eff = (max(assigns) + 1) if assigns else 0
+        if k_eff == 0:
+            raise HTTPException(status_code=400, detail="Clustering produced zero clusters (no data)")
+        dim = len(normed[0]) if normed else 0
+        cent = _centroids(assigns, normed, k_eff)
+
+        # Build a stopword set that includes any user-provided extras
+        sw = _merge_stopwords(stopwords_extra)
+
+        # Build clusters: gather docs and compute labels
+        cluster_docs: Dict[int, List[str]] = {i: [] for i in range(k_eff)}
+        cluster_sizes: Dict[int, int] = {i: 0 for i in range(k_eff)}
+        for a, row in zip(assigns, rows):
+            # Use title + meta_description for labeling; fall back to URL
+            text = (row.title or "")
+            md = getattr(row, "meta_description", None) or ""
+            if md:
+                text = f"{text} {md}".strip()
+            if not text:
+                text = row.url
+            cluster_docs[a].append(text)
+            cluster_sizes[a] += 1
+
+        clusters_out: List[ClusterTopic] = []
+        for cid in range(k_eff):
+            docs = cluster_docs.get(cid, [])
+            labels = _tfidf_labels(
+                docs,
+                top_n=top_n,
+                min_df=min_df,
+                max_df_ratio=max_df_ratio,
+                ngram_max=ngram_max,
+                stopwords=sw,
+                dedupe_substrings=dedupe_substrings,
+            )
+            samples = _nearest_to_centroid(rows, normed, assigns, cent, cid, take=samples_per_cluster)
+            clusters_out.append(
+                ClusterTopic(
+                    cluster_id=cid,
+                    size=cluster_sizes.get(cid, 0),
+                    label_terms=labels,
+                    sample_titles=samples,
+                )
+            )
+
+        # sort by cluster size desc for nicer presentation
+        clusters_out.sort(key=lambda c: c.size, reverse=True)
+
+        return TopicsResponse(
+            domain=domain,
+            k=k,
+            k_effective=k_eff,
+            embedding_dim=dim,
+            clusters=clusters_out,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        if _debug_enabled():
+            tb = "\n".join(traceback.format_exception_only(type(e), e)).strip()
+            tb_tail = "\n".join(traceback.format_exc().splitlines()[-6:])
+            raise HTTPException(status_code=500, detail=f"clusters_topics error: {tb}\n{tb_tail}")
+        raise HTTPException(status_code=500, detail="Internal error while generating cluster topics. Enable APP_DEBUG=1 for details.")
+
+
 # Suggest internal links between similar content items
 @router.get("/internal-links", response_model=LinkSuggestionsResponse)
 def internal_link_suggestions(
@@ -475,6 +721,7 @@ def internal_link_suggestions(
     min_sim: float = Query(0.45, ge=0.0, le=1.0, description="Cosine similarity threshold"),
     max_items: int = Query(1000, ge=2, le=5000, description="Max items to load for similarity graph"),
     fallback_when_empty: bool = Query(False, description="If no neighbors meet min_sim, still return the top per_item by similarity"),
+    exclude_regex: Optional[str] = Query(None, description="Regex to exclude source/target URL paths (e.g. '^/tag/|/category/')"),
     db: Session = Depends(_get_db),
 ):
     try:
@@ -493,6 +740,15 @@ def internal_link_suggestions(
         if len(rows) < 2 or not vecs:
             raise HTTPException(status_code=400, detail="Need at least 2 items with valid embeddings to suggest links.")
 
+        # Optional path exclusion regex
+        exclude_pat = None
+        if exclude_regex:
+            try:
+                exclude_pat = re.compile(exclude_regex)
+            except re.error:
+                # If the pattern is invalid, ignore it rather than failing the request
+                exclude_pat = None
+
         suggestions: List[LinkSuggestion] = []
         # vecs from _rows_and_vectors are already L2-normalized
         for i, src in enumerate(rows):
@@ -501,9 +757,13 @@ def internal_link_suggestions(
                 if i == j:
                     continue
                 # Skip same-path pairs and homepage targets to avoid useless links
-                if _url_path(rows[i].url) == _url_path(rows[j].url):
+                src_path = _url_path(rows[i].url)
+                tgt_path = _url_path(rows[j].url)
+                if src_path == tgt_path:
                     continue
                 if _is_homepage(rows[j].url):
+                    continue
+                if exclude_pat and (exclude_pat.search(src_path) or exclude_pat.search(tgt_path)):
                     continue
                 s = _cosine(vecs[i], vecs[j])
                 sims.append((s, j))

@@ -1,4 +1,5 @@
 import os
+from sqlalchemy.engine import url as sa_url
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
@@ -15,6 +16,20 @@ config = context.config
 db_url = os.getenv("DATABASE_URL")
 if db_url:
     config.set_main_option("sqlalchemy.url", db_url)
+
+# Pretty-print the effective DB URL in logs (mask any password)
+def _safe_url(raw: str | None) -> str:
+    if not raw:
+        return "<unset>"
+    try:
+        u = sa_url.make_url(raw)
+        if u.password is not None:
+            u = u.set(password="***")
+        return str(u)
+    except Exception:
+        return raw
+
+print(f"[alembic] Using DB: {_safe_url(config.get_main_option('sqlalchemy.url'))}")
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -51,6 +66,8 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        compare_type=True,
+        compare_server_default=True,
     )
 
     with context.begin_transaction():
@@ -72,7 +89,10 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection,
+            target_metadata=target_metadata,
+            compare_type=True,
+            compare_server_default=True,
         )
 
         with context.begin_transaction():

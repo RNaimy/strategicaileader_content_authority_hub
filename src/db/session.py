@@ -1,5 +1,5 @@
 
-
+#session.py
 """Database session and engine setup.
 
 This module provides:
@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------------------------------------------
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/app.db")
 IS_SQLITE = DATABASE_URL.startswith("sqlite")
+logger.debug("DB backend: %s | url=%s", "sqlite" if IS_SQLITE else "postgres/other", DATABASE_URL)
 
 # Ensure directory exists for SQLite file paths like sqlite:///./data/app.db
 if IS_SQLITE:
@@ -55,17 +56,79 @@ engine = create_engine(
 )
 
 # Apply useful SQLite PRAGMAs for concurrency & integrity
-@event.listens_for(Engine, "connect")
+# Bind the listener to the concrete engine (not the Engine class) so it never
+# fires for non-SQLite engines like Postgres.
+@event.listens_for(engine, "connect")
 def _set_sqlite_pragma(dbapi_connection, connection_record):  # type: ignore[override]
     if not IS_SQLITE:
+        # Extra guard: if this ever fires on a non-sqlite engine, do nothing.
         return
     cursor = dbapi_connection.cursor()
     try:
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.execute("PRAGMA synchronous=NORMAL")
         cursor.execute("PRAGMA foreign_keys=ON")
+    except Exception as e:
+        # Don't crash app startup if PRAGMA isn't supported; just log.
+        logger.warning("SQLite PRAGMA setup skipped due to error: %s", e)
     finally:
-        cursor.close()
+        try:
+            cursor.close()
+        except Exception:
+            pass
+
+
+# --------------------------------------------------------------------------------------
+# Compatibility shim: expose a `database` object (async-friendly) for old code paths
+# that expect `from src.db.session import database`. If `databases` package is
+# available, use it against the configured DATABASE_URL; otherwise provide a minimal
+# async shim that executes via SQLAlchemy engine. This keeps sync-first design while
+# preserving API compatibility for routers that expect `.connect()` / `.disconnect()`
+# and `.execute()` methods.
+try:
+    from databases import Database  # type: ignore
+    _HAS_DATABASES = True
+except Exception:
+    _HAS_DATABASES = False
+
+if _HAS_DATABASES:
+    database = Database(DATABASE_URL)
+else:
+    from sqlalchemy import text as _sql_text
+
+    class _SyncDatabaseShim:
+        def __init__(self, _engine: Engine):
+            self._engine = _engine
+            self._connected = False
+
+        async def connect(self) -> None:  # no-op for sync engine
+            self._connected = True
+
+        async def disconnect(self) -> None:  # no-op for sync engine
+            self._connected = False
+
+        async def execute(self, query, values=None):
+            # Accept raw SQL string or SQLAlchemy TextClause
+            stmt = query if hasattr(query, "compile") else _sql_text(str(query))
+            with self._engine.begin() as conn:
+                result = conn.execute(stmt, values or {})
+                # Return rowcount if available to mimic `databases` behavior
+                return getattr(result, "rowcount", None)
+
+        async def fetch_one(self, query, values=None):
+            stmt = query if hasattr(query, "compile") else _sql_text(str(query))
+            with self._engine.connect() as conn:
+                res = conn.execute(stmt, values or {})
+                row = res.mappings().first()
+                return dict(row) if row else None
+
+        async def fetch_all(self, query, values=None):
+            stmt = query if hasattr(query, "compile") else _sql_text(str(query))
+            with self._engine.connect() as conn:
+                res = conn.execute(stmt, values or {})
+                return [dict(r) for r in res.mappings().all()]
+
+    database = _SyncDatabaseShim(engine)
 
 
 # Session factory
@@ -77,6 +140,7 @@ __all__ = [
     "get_session",
     "session_scope",
     "ping_db",
+    "database",
 ]
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 

@@ -28,6 +28,11 @@ try:
 except Exception:  # pragma: no cover
     analytics_router = None  # type: ignore[assignment]
 
+try:
+    from src.api import intelligence_router  # type: ignore
+except Exception:  # pragma: no cover
+    intelligence_router = None  # type: ignore[assignment]
+
 
 app = FastAPI(
     title="Content Authority Hub",
@@ -52,6 +57,8 @@ def root() -> dict:
         routers.append("/scraper")
     if analytics_router is not None:
         routers.append("/analytics")
+    if intelligence_router is not None:
+        routers.append("/intelligence")
     return {
         "service": "Content Authority Hub",
         "routers": routers,
@@ -80,3 +87,5 @@ if scraper_router is not None:
     app.include_router(scraper_router)
 if analytics_router is not None:
     app.include_router(analytics_router)
+if intelligence_router is not None:
+    app.include_router(intelligence_router)

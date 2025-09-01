@@ -32,8 +32,6 @@ except Exception:  # pragma: no cover
 
 app = FastAPI(
     title="Content Authority Hub",
-app.include_router(authority_router, prefix="/authority", tags=["authority"])
-
     version="0.1.0",
     docs_url="/docs",
     redoc_url=None,
@@ -75,6 +73,7 @@ def health() -> dict:
 
 
 # Router mounting
+app.include_router(authority_router, prefix="/authority", tags=["authority"])
 app.include_router(clustering_router)
 app.include_router(content_router)
 if inventory_router is not None:

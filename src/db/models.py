@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON, Float, Numeric, func, UniqueConstraint, Index
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON, Float, Numeric, func, UniqueConstraint, Index, Boolean
 from sqlalchemy.orm import relationship, declarative_base
 
 Base = declarative_base()
@@ -61,6 +61,14 @@ class ContentItem(Base):
     # Optional vector embedding for clustering / similarity
     embedding = Column(JSON, nullable=True)
     cluster_id = Column(Integer, nullable=True)
+
+    # Authority signals (Phase 7)
+    authority_entity_score = Column(Float, nullable=True)
+    authority_citation_count = Column(Integer, nullable=True)
+    authority_external_links = Column(Integer, nullable=True)
+    authority_schema_present = Column(Boolean, nullable=True)
+    authority_author_bylines = Column(Integer, nullable=True)
+    authority_last_scored_at = Column(DateTime(timezone=True), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from src.api.authority_api import router as authority_router
 from typing import List, Optional
 
 from fastapi import FastAPI
@@ -31,6 +32,8 @@ except Exception:  # pragma: no cover
 
 app = FastAPI(
     title="Content Authority Hub",
+app.include_router(authority_router, prefix="/authority", tags=["authority"])
+
     version="0.1.0",
     docs_url="/docs",
     redoc_url=None,

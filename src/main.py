@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from src.api.authority_api import router as authority_router
 from typing import List, Optional
 
 from fastapi import FastAPI
@@ -79,6 +80,7 @@ def health() -> dict:
 
 
 # Router mounting
+app.include_router(authority_router, prefix="/authority", tags=["authority"])
 app.include_router(clustering_router)
 app.include_router(content_router)
 if inventory_router is not None:

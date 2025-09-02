@@ -125,6 +125,16 @@ Open the docs at: `http://127.0.0.1:8001/docs`
 - `GET /analytics/config`  
   Retrieve current analytics configuration and OAuth status.
 
+### Graph Export
+- `GET /graph/export` – returns a JSON object with `nodes`, `edges`, and `meta`.
+- `POST /graph/recompute` – recomputes graph metrics (e.g., PageRank, hub/authority) and returns fresh JSON.
+
+Example to export the graph to a local file:
+```bash
+mkdir -p graph/export
+curl -sS http://localhost:8000/graph/export -o graph/export/graph.json
+```
+
 ## Quickstart (happy path)
 ```bash
 # 1) Migrate DB
@@ -153,6 +163,10 @@ curl -s -X POST "http://127.0.0.1:8001/clusters/commit" \
 
 # 6) Internal linking suggestions
 curl -s "http://127.0.0.1:8001/clusters/internal-links?domain=strategicaileader.com&per_item=3&min_sim=0.45&max_items=500" | jq
+
+# 7) Graph Export
+curl -s http://127.0.0.1:8001/graph/export | jq .
+curl -s -X POST http://127.0.0.1:8001/graph/recompute | jq .
 ```
 
 ## Refresh Token Setup
@@ -219,6 +233,7 @@ curl -s "$BASE/clusters/status?domain=$DOMAIN" | jq .
 - **Dedupe**: Set `dedupe_substrings=true` on `/clusters/topics` to collapse near‑duplicate label terms (`leader` vs `leadership`, `ops` vs `operations`).
 - **Exclusions**: Use `exclude_regex` (URL‑encoded) to filter out non‑article pages (e.g., `/tag/`, `/category/`) in link suggestions.
 - **Commit vs Preview**: `preview` never writes to DB. `commit` writes `cluster_id` onto `content_items`. `clear` sets `cluster_id=NULL`.
+- **Graph Export**: Orphan nodes (with no edges) are included with metrics; duplicate/self-loop edges are filtered.
 
 ## Running Tests
 
@@ -235,6 +250,9 @@ python -m uvicorn src.main:app --reload --port 8001
 # In another terminal, run tests:
 pytest -q
 ```
+
+# Focused graph tests
+pytest -q tests/test_graph_api.py tests/test_graph_export.py
 
 Focused examples you can run manually:
 ```bash

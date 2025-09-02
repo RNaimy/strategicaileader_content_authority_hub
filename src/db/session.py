@@ -10,12 +10,21 @@ This module provides:
 """
 from __future__ import annotations
 
+
 import os
 import pathlib
 import logging
 import sys
 from contextlib import contextmanager
 from typing import Generator
+
+# Load environment variables from a .env file if present (non-fatal if missing)
+try:
+    from dotenv import load_dotenv  # type: ignore
+    load_dotenv(override=False)
+except Exception:
+    # It's fine if python-dotenv isn't installed; we fall back to raw environment.
+    pass
 
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
@@ -54,6 +63,9 @@ engine = create_engine(
     pool_pre_ping=True,
     connect_args={"check_same_thread": False} if IS_SQLITE else {},
 )
+
+# Log the resolved engine URL at import time
+logger.info("DB engine initialized: %s", engine.url)
 
 # Apply useful SQLite PRAGMAs for concurrency & integrity
 # Bind the listener to the concrete engine (not the Engine class) so it never

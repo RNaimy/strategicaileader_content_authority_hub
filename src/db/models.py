@@ -76,6 +76,25 @@ class ContentItem(Base):
     # Relationship
     site = relationship("Site", back_populates="content_items")
 
+    # --- Phase 8: Authority Graph relationships ---
+    outbound_links = relationship(
+        "ContentLink",
+        foreign_keys="ContentLink.from_content_id",
+        back_populates="from_content",
+        cascade="all, delete-orphan",
+    )
+    inbound_links = relationship(
+        "ContentLink",
+        foreign_keys="ContentLink.to_content_id",
+        back_populates="to_content",
+    )
+    graph_metric = relationship(
+        "GraphMetric",
+        uselist=False,
+        back_populates="content_item",
+        cascade="all, delete-orphan",
+    )
+
     def __repr__(self):
         return f"<ContentItem(url={self.url}, site={self.site_id})>"
 
@@ -296,3 +315,78 @@ class PromptFingerprint(Base):
 
     def __repr__(self):
         return f"<PromptFingerprint(name={self.name!r}, version={self.version}, hash={self.hash[:8]}...)>"
+
+
+# --- Phase 8: Authority Graph ---------------------------------------------------
+
+class ContentLink(Base):
+    """
+    Directed link between content items. If `to_content_id` is NULL, the edge points
+    to an external URL stored in `to_url`.
+    """
+    __tablename__ = "content_links"
+
+    id = Column(Integer, primary_key=True, index=True)
+    from_content_id = Column(
+        Integer,
+        ForeignKey("content_items.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    to_content_id = Column(
+        Integer,
+        ForeignKey("content_items.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    # External target when `to_content_id` is NULL
+    to_url = Column(String(2048), nullable=True)
+
+    # Link attributes
+    anchor_text = Column(String(512), nullable=True)
+    rel = Column(String(64), nullable=True)
+    nofollow = Column(Boolean, nullable=False, server_default="false")
+    is_internal = Column(Boolean, nullable=False, server_default="false")
+
+    # Relationships
+    from_content = relationship(
+        "ContentItem",
+        foreign_keys=[from_content_id],
+        back_populates="outbound_links",
+    )
+    to_content = relationship(
+        "ContentItem",
+        foreign_keys=[to_content_id],
+        back_populates="inbound_links",
+    )
+
+    def __repr__(self):
+        tgt = f"id={self.to_content_id}" if self.to_content_id is not None else f"url={self.to_url!r}"
+        return f"<ContentLink(from={self.from_content_id}, to={tgt})>"
+
+
+class GraphMetric(Base):
+    """
+    Node-level graph metrics for a content item (degrees, PageRank, etc.).
+    """
+    __tablename__ = "graph_metrics"
+
+    id = Column(Integer, primary_key=True, index=True)
+    content_id = Column(
+        Integer,
+        ForeignKey("content_items.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    degree_in = Column(Integer, nullable=False, server_default="0")
+    degree_out = Column(Integer, nullable=False, server_default="0")
+    pagerank = Column(Float, nullable=True)
+    authority = Column(Float, nullable=True)
+    hub = Column(Float, nullable=True)
+    last_computed_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    # Relationship
+    content_item = relationship("ContentItem", back_populates="graph_metric")
+
+    def __repr__(self):
+        return f"<GraphMetric(content_id={self.content_id}, deg_in={self.degree_in}, deg_out={self.degree_out})>"

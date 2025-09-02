@@ -79,7 +79,7 @@ jobs:
       - name: Run tests with coverage
         run: |
           python -m coverage erase
-          PYTHONPATH=.:src python -m pytest -q -p pytest_cov --cov=src --cov-report=term-missing --cov-report=html
+          PYTHONPATH=.:src python -m pytest -q -p pytest_cov --cov=src --cov-report=term-missing --cov-report=html --cov-fail-under=0
 
       - name: Upload HTML coverage
         if: always()

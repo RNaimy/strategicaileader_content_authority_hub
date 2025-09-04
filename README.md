@@ -66,6 +66,95 @@ python -m uvicorn src.main:app --reload --port 8001
 
 Open the docs at: `http://127.0.0.1:8001/docs`
 
+## Retrieval (Phase 9 — Semantic Search & RAG)
+
+> Phase 9 adds a minimal-but-usable retrieval layer with a simple RAG-lite answer endpoint. It works with SQLite or Postgres and does **not** require an embeddings service for the demo path (it falls back to a deterministic hash embeddings provider by default).
+
+### Enable & Run
+```bash
+# Choose your DB (SQLite shown)
+export DATABASE_URL=sqlite:///./data/app.db
+
+# Retrieval defaults
+export ENABLE_RETRIEVAL=1
+export EMBEDDING_PROVIDER=hash128   # options: hash128 | openai
+export EMBEDDING_DIM=128            # 128/256 for hash128, 3072 for OpenAI
+
+# Start API on port 8001
+pkill -f "uvicorn.*8001" || true
+python -m uvicorn src.main:app --reload --port 8001
+```
+
+### Demo Data (seed)
+```bash
+# Seed a tiny site (creates 6 nodes / 6 edges)
+PYTHONPATH=.:src python scripts/seed_demo.py --domain example.com --flush
+```
+
+### Endpoints
+- `GET /retrieval/health` → `{ "status": "ok", "ok": true }`
+- `GET /retrieval/search` → hybrid-ready search (currently heuristic; Phase 9 will add BM25 + embeddings blend)
+  - Params: `q` (required), `top_k` (default 10), `site_id` or `domain`, `since_days`, `content_type`, `offset`
+- `POST /retrieval/reindex` → accept reindex request (idempotent)
+  - Body: `{ "domain": "example.com", "refresh_embeddings": false }`
+- `POST /retrieval/answer` → RAG‑lite extractive answer using top search results
+  - Body: `{ "q": "...", "top_k": 5, "site_id": 3, "max_tokens": 200, "since_days": 30, "content_type": "post" }`
+
+### Copy‑paste Examples
+```bash
+BASE="http://127.0.0.1:8001"
+
+# Health
+curl -s "$BASE/retrieval/health" | jq .
+
+# Reindex a domain (Phase 9 accepts and responds; background indexing to follow)
+curl -s -X POST "$BASE/retrieval/reindex" \
+  -H 'Content-Type: application/json' \
+  -d '{"domain":"example.com","refresh_embeddings":false}' | jq .
+
+# Search within a domain
+curl -s "$BASE/retrieval/search?q=pillar&domain=example.com&top_k=5" | jq .
+
+# Date/content filters
+curl -s "$BASE/retrieval/search?q=deep&domain=example.com&since_days=7&content_type=post" | jq .
+
+# Ask for an answer (RAG‑lite)
+curl -s -X POST "$BASE/retrieval/answer" \
+  -H 'Content-Type: application/json' \
+  -d '{"q":"pillar page","domain":"example.com","top_k":3,"max_tokens":120}' | jq .
+```
+
+### Makefile targets (Phase 9)
+> If you see `*** missing separator. Stop.`, ensure Makefile recipe lines are indented with **Tabs**, not spaces.
+```make
+# Start API with retrieval enabled on port 8001
+dev-retrieval:
+	@export ENABLE_RETRIEVAL=1; \
+	export DATABASE_URL?=sqlite:///./data/app.db; \
+	uvicorn src.main:app --reload --port 8001
+
+# Seed the demo content (6 docs)
+demo-seed:
+	@PYTHONPATH=.:src python scripts/seed_demo.py --domain example.com --flush
+
+# Quick search example
+retrieval-search:
+	@curl -s "http://127.0.0.1:8001/retrieval/search?q=$${Q:-pillar}&domain=$${DOMAIN:-example.com}&top_k=$${TOPK:-5}" | jq .
+
+# Quick answer example
+retrieval-answer:
+	@curl -s -X POST "http://127.0.0.1:8001/retrieval/answer" \
+	  -H 'Content-Type: application/json' \
+	  -d '{"q":"'$${Q:-pillar page}'","domain":"'$${DOMAIN:-example.com}'","top_k":'$${TOPK:-3}',"max_tokens":'$${TOK:-120}'}' | jq .
+```
+
+### Notes & Roadmap
+- Current ranking is a lightweight heuristic. Phase 9 increments will:
+  - add **sparse** (BM25/FTS) + **dense** (embeddings) hybrid scoring with configurable blend,
+  - add **recency boost** and better snippets,
+  - add **observability**: `took_ms`, cache flags, hit counts,
+  - wire a background **indexer** for embeddings & FTS rebuilds.
+
 ## Key Endpoints
 
 ### Service & Health

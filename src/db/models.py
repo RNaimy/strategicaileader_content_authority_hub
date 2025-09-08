@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON, Float, func, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON, Float, func, UniqueConstraint, Index
 from sqlalchemy.orm import relationship, declarative_base
 
 Base = declarative_base()
@@ -69,3 +69,25 @@ class ContentItem(Base):
 
     def __repr__(self):
         return f"<ContentItem(url={self.url}, site={self.site_id})>"
+
+
+# New model: ImprovementRecommendation
+class ImprovementRecommendation(Base):
+    __tablename__ = "improvement_recommendations"
+    __table_args__ = (
+        Index("ix_improve_site_flag_score", "site_id", "flag", "score"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    site_id = Column(Integer, nullable=False, index=True)
+    content_item_id = Column(Integer, ForeignKey("content_items.id"), nullable=True, index=True)
+
+    # flag examples: "quick_win", "at_risk", "emerging_topic"
+    flag = Column(String(64), nullable=False, index=True)
+    score = Column(Float, nullable=True)  # higher = more urgent or higher lift
+    rationale = Column(JSON, nullable=True)  # store rule outputs and metrics
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    def __repr__(self):
+        return f"<ImprovementRecommendation(flag={self.flag}, site_id={self.site_id}, content_item_id={self.content_item_id})>"

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+
 from typing import List, Optional
 
 from fastapi import FastAPI
@@ -11,12 +12,20 @@ from src.db.session import get_db
 
 from src.services.improvement import recompute_recommendations
 
+from src.api.authority_api import router as authority_router
+from typing import List, Optional
+
+from fastapi import FastAPI
+
+
 from sqlalchemy import text
 
 from src.db.session import get_session
 from src.db_init import init_db
 
+
 from datetime import datetime
+
 
 # Import routers from the API package. Use try/except for optional ones so the app
 # still boots even if a module is temporarily missing during development.
@@ -31,6 +40,17 @@ try:
     from src.api import scraper_router  # type: ignore
 except Exception:  # pragma: no cover
     scraper_router = None  # type: ignore[assignment]
+
+try:
+    from src.api import analytics_router  # type: ignore
+except Exception:  # pragma: no cover
+    analytics_router = None  # type: ignore[assignment]
+
+try:
+    from src.api import intelligence_router  # type: ignore
+except Exception:  # pragma: no cover
+    intelligence_router = None  # type: ignore[assignment]
+
 
 
 app = FastAPI(
@@ -54,12 +74,19 @@ def root() -> dict:
         routers.append("/inventory")
     if scraper_router is not None:
         routers.append("/scraper")
+
+    if analytics_router is not None:
+        routers.append("/analytics")
+    if intelligence_router is not None:
+        routers.append("/intelligence")
+
     return {
         "service": "Content Authority Hub",
         "routers": routers,
         "docs": "/docs",
         "health": "/health",
     }
+
 
 
 @app.get("/health")
@@ -148,9 +175,33 @@ def recompute(
     summary = recompute_recommendations(db, site_id=site_id, limit=limit)
     return {"site_id": site_id, "written": summary}
 
+
+
+@app.get("/health")
+def health() -> dict:
+    ok_db = False
+    try:
+        with get_session() as s:
+            ok_db = s.execute(text("select 1")).scalar() == 1
+    except Exception:
+        ok_db = False
+    return {"ok": True, "db": ok_db}
+
+
+# Router mounting
+app.include_router(authority_router, prefix="/authority", tags=["authority"])
+
 app.include_router(clustering_router)
 app.include_router(content_router)
 if inventory_router is not None:
     app.include_router(inventory_router)
 if scraper_router is not None:
+
     app.include_router(scraper_router)
+
+    app.include_router(scraper_router)
+if analytics_router is not None:
+    app.include_router(analytics_router)
+if intelligence_router is not None:
+    app.include_router(intelligence_router)
+

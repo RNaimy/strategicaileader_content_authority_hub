@@ -5,7 +5,6 @@ __pycache__/
 
 # Virtual environments
 venv/
-.env/
 .envrc
 *.env
 
@@ -82,3 +81,4 @@ htmlcov/
 .coverage
 .coverage.*
 .pytest_cache/
+ main

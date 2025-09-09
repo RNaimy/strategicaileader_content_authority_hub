@@ -1,4 +1,8 @@
+
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON, Float, func, UniqueConstraint, Index
+
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON, Float, Numeric, func, UniqueConstraint, Index, Boolean
+
 from sqlalchemy.orm import relationship, declarative_base
 
 Base = declarative_base()
@@ -12,9 +16,14 @@ class Site(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
+
+    # Relationship
+    content_items = relationship("ContentItem", back_populates="site")
+
     # Relationships
     content_items = relationship("ContentItem", back_populates="site")
     analytics_snapshots = relationship("AnalyticsSnapshot", back_populates="site")
+
 
     def __repr__(self):
         return f"<Site(domain={self.domain})>"
@@ -62,6 +71,7 @@ class ContentItem(Base):
     embedding = Column(JSON, nullable=True)
     cluster_id = Column(Integer, nullable=True)
 
+
     # Authority signals (Phase 7)
     authority_entity_score = Column(Float, nullable=True)
     authority_citation_count = Column(Integer, nullable=True)
@@ -69,6 +79,7 @@ class ContentItem(Base):
     authority_schema_present = Column(Boolean, nullable=True)
     authority_author_bylines = Column(Integer, nullable=True)
     authority_last_scored_at = Column(DateTime(timezone=True), nullable=True)
+
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
@@ -79,6 +90,28 @@ class ContentItem(Base):
     def __repr__(self):
         return f"<ContentItem(url={self.url}, site={self.site_id})>"
 
+
+
+# New model: ImprovementRecommendation
+class ImprovementRecommendation(Base):
+    __tablename__ = "improvement_recommendations"
+    __table_args__ = (
+        Index("ix_improve_site_flag_score", "site_id", "flag", "score"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    site_id = Column(Integer, nullable=False, index=True)
+    content_item_id = Column(Integer, ForeignKey("content_items.id"), nullable=True, index=True)
+
+    # flag examples: "quick_win", "at_risk", "emerging_topic"
+    flag = Column(String(64), nullable=False, index=True)
+    score = Column(Float, nullable=True)  # higher = more urgent or higher lift
+    rationale = Column(JSON, nullable=True)  # store rule outputs and metrics
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    def __repr__(self):
+        return f"<ImprovementRecommendation(flag={self.flag}, site_id={self.site_id}, content_item_id={self.content_item_id})>"
 
 # AnalyticsSnapshot model (aligned with migration ce01e106f155)
 class AnalyticsSnapshot(Base):
@@ -296,3 +329,4 @@ class PromptFingerprint(Base):
 
     def __repr__(self):
         return f"<PromptFingerprint(name={self.name!r}, version={self.version}, hash={self.hash[:8]}...)>"
+

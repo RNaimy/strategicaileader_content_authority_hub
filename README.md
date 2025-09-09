@@ -6,7 +6,9 @@ A FastAPI-based tool for crawling, embedding, clustering, and analyzing content 
 - Python 3.11+
 - SQLite (bundled) or a Postgres URL for `DATABASE_URL`
 - (Optional) OpenAI API key if using OpenAI embeddings
+
 - Google API libraries: `google-api-python-client`, `google-auth`, `google-auth-oauthlib`, and `google-auth-httplib2`
+
 
 ## Setup
 cd ~/Documents/python-projects/strategicaileader_content_authority_hub
@@ -26,7 +28,6 @@ export EMBEDDING_DIM=128              # 3072 for OpenAI, 128/256 for hash128
 export APP_DEBUG=1                    # optional: verbose logs
 # If using OpenAI:
 # export OPENAI_API_KEY=sk-...
-
 # --- Google Analytics 4 (GA4) OAuth ---
 GA4_CLIENT_ID=...
 GA4_CLIENT_SECRET=...
@@ -111,6 +112,7 @@ Open the docs at: `http://127.0.0.1:8001/docs`
   - `GET /content/embedding-info?provider=openai&dim=3072`
   - `GET /content/embedding-info?provider=hash128&dim=256`
 
+
 ### Analytics Endpoints
 - `POST /analytics/ingest/ga4`  
   Ingest Google Analytics 4 data. Requires OAuth credentials in live mode.
@@ -121,19 +123,18 @@ Open the docs at: `http://127.0.0.1:8001/docs`
 - `GET /analytics/latest?domain=...`  
   Retrieve the latest analytics snapshot for the domain.
 - `GET /analytics/summary?domain=...`  
-  Get summarized analytics data for the domain.
+  Get summarized analytics for the domain.
 - `GET /analytics/config`  
   Retrieve current analytics configuration and OAuth status.
 
 ### Graph Export
-- `GET /graph/export` – returns a JSON object with `nodes`, `edges`, and `meta`.
-- `POST /graph/recompute` – recomputes graph metrics (e.g., PageRank, hub/authority) and returns fresh JSON.
+- `GET /graph/export` — returns a JSON object with `nodes`, `edges`, and `meta`.
+- `POST /graph/recompute` — recomputes graph metrics (e.g., PageRank, hub/authority) and returns fresh JSON.
 
 Example to export the graph to a local file:
 ```bash
 mkdir -p graph/export
-curl -sS http://localhost:8000/graph/export -o graph/export/graph.json
-```
+curl -s http://localhost:8000/graph/export -o graph/export/graph.json
 
 ## Quickstart (happy path)
 ```bash
@@ -164,6 +165,7 @@ curl -s -X POST "http://127.0.0.1:8001/clusters/commit" \
 # 6) Internal linking suggestions
 curl -s "http://127.0.0.1:8001/clusters/internal-links?domain=strategicaileader.com&per_item=3&min_sim=0.45&max_items=500" | jq
 
+
 # 7) Graph Export
 curl -s http://127.0.0.1:8001/graph/export | jq .
 curl -s -X POST http://127.0.0.1:8001/graph/recompute | jq .
@@ -178,6 +180,7 @@ python scripts/get_refresh_token.py
 ```
 
 Follow the prompts to authorize access and generate refresh tokens. Paste the resulting tokens into your `.env` file or environment variables under `GA4_REFRESH_TOKEN` and `GSC_REFRESH_TOKEN` respectively.
+
 
 ## Verification & Diagnostics (copy‑paste)
 
@@ -233,7 +236,9 @@ curl -s "$BASE/clusters/status?domain=$DOMAIN" | jq .
 - **Dedupe**: Set `dedupe_substrings=true` on `/clusters/topics` to collapse near‑duplicate label terms (`leader` vs `leadership`, `ops` vs `operations`).
 - **Exclusions**: Use `exclude_regex` (URL‑encoded) to filter out non‑article pages (e.g., `/tag/`, `/category/`) in link suggestions.
 - **Commit vs Preview**: `preview` never writes to DB. `commit` writes `cluster_id` onto `content_items`. `clear` sets `cluster_id=NULL`.
+
 - **Graph Export**: Orphan nodes (with no edges) are included with metrics; duplicate/self-loop edges are filtered.
+
 
 ## Running Tests
 
@@ -250,6 +255,7 @@ python -m uvicorn src.main:app --reload --port 8001
 # In another terminal, run tests:
 pytest -q
 ```
+
 
 # Focused graph tests
 pytest -q tests/test_graph_api.py tests/test_graph_export.py
@@ -277,12 +283,14 @@ curl -s "$BASE/clusters/internal-links?domain=$DOMAIN&amp;per_item=3&amp;min_sim
   We use SQLite-safe batch migrations. Ensure you ran `alembic upgrade head` with the correct `DATABASE_URL`.
 - **No internal link suggestions**  
   Lower `min_sim` or increase `per_item`. Ensure content has embeddings (`/clusters/status`).
+
 - **Generating Google OAuth Refresh Tokens**  
   Use the provided script to generate refresh tokens for GA4 and GSC:
   ```bash
   python scripts/get_refresh_token.py
   ```
   Then paste the tokens into your environment variables (`GA4_REFRESH_TOKEN`, `GSC_REFRESH_TOKEN`).
+
 
 MIT License
 

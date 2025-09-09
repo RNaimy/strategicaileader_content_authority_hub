@@ -81,8 +81,4 @@ htmlcov/
 .coverage
 .coverage.*
 .pytest_cache/
-
-# Google API service account keys
-keys/*.json
-.env
-keys/*.json
+ main

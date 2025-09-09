@@ -1,53 +1,68 @@
 # src/api/__init__.py
-"""API package initialization.
+"""API package exports for FastAPI routers.
 
-Exposes shared routers for easy import elsewhere, e.g.:
-
-    from src.api import content_router, clustering_router, inventory_router, scraper_router, get_routers
+This module centralizes router imports and avoids merge conflicts by
+guarding optional routers with safe imports. It also exposes a helper
+`get_routers()` that returns only available routers, and mounts the
+retrieval router only when ENABLE_RETRIEVAL is truthy.
 """
 
 from __future__ import annotations
 
-# Import routers
-from .clustering_api import router as clustering_router
-from .content_api import router as content_router
-from .inventory_api import router as inventory_router
-from .scraper_api import router as scraper_router
+import os
+import logging
 
+logger = logging.getLogger(__name__)
 
-from .analytics_api import router as analytics_router
-from .intelligence_api import router as intelligence_router
+# --- Core routers (expected to exist) ---
+from .clustering_api import router as clustering_router  # type: ignore
+from .content_api import router as content_router  # type: ignore
 
+# --- Optional routers (guarded imports) ---
+def _optional_router(module_name: str):
+    try:
+        mod = __import__(f"{__name__}.{module_name}", fromlist=["router"])
+        return getattr(mod, "router", None)
+    except Exception as e:  # pragma: no cover
+        logger.debug("Optional router '%s' not available: %s", module_name, e)
+        return None
+
+inventory_router = _optional_router("inventory_api")
+scraper_router = _optional_router("scraper_api")
+analytics_router = _optional_router("analytics_api")
+intelligence_router = _optional_router("intelligence_api")
+retrieval_router = _optional_router("retrieval_api")
 
 __all__ = [
     "clustering_router",
     "content_router",
     "inventory_router",
     "scraper_router",
-
     "analytics_router",
     "intelligence_router",
-
+    "retrieval_router",
     "get_routers",
 ]
 
 def get_routers():
-    """Return all routers as a list.
+    """Return a list of routers that should be mounted."""
+    routers = [clustering_router, content_router]
 
-    Useful in app startup code, e.g.:
+    # Add any optional routers that successfully imported
+    for r in (inventory_router, scraper_router, analytics_router, intelligence_router):
+        if r is not None:
+            routers.append(r)
 
-        for r in get_routers():
-            app.include_router(r)
-    """
+    # Retrieval is opt-in via env flag and must be importable
+    enable_retrieval = os.getenv("ENABLE_RETRIEVAL", "").strip().lower() in {"1", "true", "yes", "on"}
+    if enable_retrieval and retrieval_router is not None:
+        routers.append(retrieval_router)
+        logger.info("retrieval: enabled and mounted")
+    else:
+        logger.debug(
+            "retrieval: enabled_env=%s, router_available=%s (not mounted)",
+            enable_retrieval,
+            retrieval_router is not None,
+        )
 
-    return [clustering_router, content_router, inventory_router, scraper_router]
-
-    return [
-        clustering_router,
-        content_router,
-        inventory_router,
-        scraper_router,
-        analytics_router,
-        intelligence_router,
-    ]
-
+    return routers

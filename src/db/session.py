@@ -1,5 +1,4 @@
-
-#session.py
+# session.py
 """Database session and engine setup.
 
 This module provides:
@@ -21,7 +20,7 @@ from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
 
- # Ensure project root is importable as a package (helps when running ad-hoc scripts)
+# Ensure project root is importable as a package (helps when running ad-hoc scripts)
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -39,7 +38,9 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------------------------------------------
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/app.db")
 IS_SQLITE = DATABASE_URL.startswith("sqlite")
-logger.debug("DB backend: %s | url=%s", "sqlite" if IS_SQLITE else "postgres/other", DATABASE_URL)
+logger.debug(
+    "DB backend: %s | url=%s", "sqlite" if IS_SQLITE else "postgres/other", DATABASE_URL
+)
 
 # Ensure directory exists for SQLite file paths like sqlite:///./data/app.db
 if IS_SQLITE:
@@ -54,6 +55,7 @@ engine = create_engine(
     pool_pre_ping=True,
     connect_args={"check_same_thread": False} if IS_SQLITE else {},
 )
+
 
 # Apply useful SQLite PRAGMAs for concurrency & integrity
 # Bind the listener to the concrete engine (not the Engine class) so it never
@@ -87,6 +89,7 @@ def _set_sqlite_pragma(dbapi_connection, connection_record):  # type: ignore[ove
 # and `.execute()` methods.
 try:
     from databases import Database  # type: ignore
+
     _HAS_DATABASES = True
 except Exception:
     _HAS_DATABASES = False
@@ -150,7 +153,9 @@ def init_db() -> None:
     if IS_SQLITE:
         # Re-check directory in case env changed at runtime
         db_path = DATABASE_URL.replace("sqlite:///", "")
-        pathlib.Path(db_path).expanduser().resolve().parent.mkdir(parents=True, exist_ok=True)
+        pathlib.Path(db_path).expanduser().resolve().parent.mkdir(
+            parents=True, exist_ok=True
+        )
     Base.metadata.create_all(bind=engine)
     logger.info("Database initialized: %s", DATABASE_URL)
 

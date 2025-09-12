@@ -5,6 +5,7 @@ Revises: 77771a21927f
 Create Date: 2025-09-08 16:35:43.549893
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -27,11 +28,21 @@ def upgrade() -> None:
             "improvement_recommendations",
             sa.Column("id", sa.Integer(), primary_key=True, nullable=False),
             sa.Column("site_id", sa.Integer(), nullable=False),
-            sa.Column("content_item_id", sa.Integer(), sa.ForeignKey("content_items.id"), nullable=True),
+            sa.Column(
+                "content_item_id",
+                sa.Integer(),
+                sa.ForeignKey("content_items.id"),
+                nullable=True,
+            ),
             sa.Column("flag", sa.String(length=64), nullable=False),
             sa.Column("score", sa.Float(), nullable=True),
             sa.Column("rationale", sa.JSON(), nullable=True),
-            sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                server_default=sa.text("CURRENT_TIMESTAMP"),
+                nullable=False,
+            ),
         )
         op.create_index(
             "ix_improve_site_flag_score",
@@ -57,7 +68,9 @@ def downgrade() -> None:
     """Downgrade schema."""
     # Best-effort drops for SQLite
     try:
-        op.drop_index("ix_improve_site_flag_score", table_name="improvement_recommendations")
+        op.drop_index(
+            "ix_improve_site_flag_score", table_name="improvement_recommendations"
+        )
     except Exception:
         pass
     op.drop_table("improvement_recommendations")

@@ -10,7 +10,13 @@ app = FastAPI(title="Content Authority Hub")
 # CORS for local dev (adjust as needed)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost", "http://127.0.0.1", "http://localhost:8000", "http://127.0.0.1:8000", "http://localhost:5500"],
+    allow_origins=[
+        "http://localhost",
+        "http://127.0.0.1",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:5500",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -20,4 +26,6 @@ app.add_middleware(
 app.include_router(brands_router)
 
 # Static hosting (so /brands.html works)
-app.mount("/", StaticFiles(directory="static", html=True), name="static")// touch # or change any file
+app.mount(
+    "/", StaticFiles(directory="static", html=True), name="static"
+) // touch  # or change any file

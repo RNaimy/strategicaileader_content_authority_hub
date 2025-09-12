@@ -10,6 +10,7 @@ from src.services.serp_client import SERPClient
 
 router = APIRouter(prefix="/intelligence", tags=["intelligence"])
 
+
 @router.get("/")
 def index():
     return {
@@ -25,10 +26,15 @@ def index():
 
 # ---------- Models ----------
 
+
 class QARequest(BaseModel):
     question: str = Field(..., description="Natural-language question")
-    domain: Optional[str] = Field(None, description="Restrict context to a known site domain")
-    top_k: int = Field(5, ge=1, le=50, description="Max items to retrieve from vector store")
+    domain: Optional[str] = Field(
+        None, description="Restrict context to a known site domain"
+    )
+    top_k: int = Field(
+        5, ge=1, le=50, description="Max items to retrieve from vector store"
+    )
 
 
 class SERPRequest(BaseModel):
@@ -38,6 +44,7 @@ class SERPRequest(BaseModel):
 
 
 # ---------- Routes ----------
+
 
 @router.get("/health")
 def health():
@@ -49,7 +56,10 @@ def config():
     # Report only presence/absence, never secret values
     return {
         "openai": {"configured": bool(os.getenv("OPENAI_API_KEY"))},
-        "serp": {"bing": bool(os.getenv("BING_API_KEY")), "google_cx": bool(os.getenv("GOOGLE_CSE_CX"))},
+        "serp": {
+            "bing": bool(os.getenv("BING_API_KEY")),
+            "google_cx": bool(os.getenv("GOOGLE_CSE_CX")),
+        },
     }
 
 
@@ -58,7 +68,7 @@ def qa(req: QARequest):
     # normalize inputs (do not change current contract)
     question = (req.question or "").strip()
     top_k = max(1, min(50, int(req.top_k)))
-    domain = (req.domain or None)
+    domain = req.domain or None
     """
     Placeholder for retrieval-augmented QA.
     Tests currently xfail against this endpoint.
@@ -76,7 +86,7 @@ def qa(req: QARequest):
 def serp(req: SERPRequest):
     query = (req.query or "").strip()
     num = max(1, min(50, int(req.num)))
-    market = (req.market or None)
+    market = req.market or None
 
     # Determine provider and attempt live search if configured
     provider = None

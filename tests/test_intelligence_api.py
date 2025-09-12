@@ -1,5 +1,3 @@
-
-
 import os
 import pytest
 from starlette.testclient import TestClient
@@ -8,10 +6,12 @@ from starlette.testclient import TestClient
 # They are written to pass even if the /intelligence router is not implemented yet.
 # When the routes land, the assertions below will automatically start enforcing behavior.
 
+
 @pytest.fixture(scope="module")
 def client():
     # Ensure app imports without needing a running server
     from src.main import app
+
     return TestClient(app)
 
 
@@ -73,7 +73,9 @@ def test_intelligence_brief_smoke(client: TestClient):
     payload = r.json()
     # Flexible schema: accept either 'summary' or 'brief' field name
     assert payload.get("domain") == domain
-    assert any(k in payload for k in ("summary", "brief")), "Expected summary/brief field"
+    assert any(
+        k in payload for k in ("summary", "brief")
+    ), "Expected summary/brief field"
     # If sources provided, it should be a list
     if "sources" in payload:
         assert isinstance(payload["sources"], list)

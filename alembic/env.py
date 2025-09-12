@@ -17,6 +17,7 @@ db_url = os.getenv("DATABASE_URL")
 if db_url:
     config.set_main_option("sqlalchemy.url", db_url)
 
+
 # Pretty-print the effective DB URL in logs (mask any password)
 def _safe_url(raw: str | None) -> str:
     if not raw:
@@ -28,6 +29,7 @@ def _safe_url(raw: str | None) -> str:
         return str(u)
     except Exception:
         return raw
+
 
 print(f"[alembic] Using DB: {_safe_url(config.get_main_option('sqlalchemy.url'))}")
 

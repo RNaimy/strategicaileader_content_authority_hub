@@ -12,6 +12,7 @@ This module exports both a FastAPI `router` (mounted at `/brands`) and a ready-t
 
 Tests monkeypatch `BRANDS_JSON` to point at a temp file containing `{"brands": []}`. Read/write helpers are resilient when the file is missing or empty.
 """
+
 from __future__ import annotations
 
 from fastapi import APIRouter, FastAPI, HTTPException, Response
@@ -27,6 +28,7 @@ import json
 BRANDS_JSON: str = str(Path(__file__).with_name("brands.json"))
 
 # --------------------------- Pydantic models --------------------------- #
+
 
 class Brand(BaseModel):
     key: str = Field(..., description="Stable identifier for the brand")
@@ -49,6 +51,7 @@ class BrandUpdate(BaseModel):
 
 # --------------------------- helpers --------------------------- #
 
+
 def _read_store() -> Dict[str, List[Dict[str, Any]]]:
     path = Path(BRANDS_JSON)
     if not path.exists():
@@ -58,7 +61,11 @@ def _read_store() -> Dict[str, List[Dict[str, Any]]]:
         if not text:
             return {"brands": []}
         data = json.loads(text)
-        if isinstance(data, dict) and "brands" in data and isinstance(data["brands"], list):
+        if (
+            isinstance(data, dict)
+            and "brands" in data
+            and isinstance(data["brands"], list)
+        ):
             return data
         # Tolerate just a list
         if isinstance(data, list):
@@ -88,7 +95,10 @@ def _validate_key(key: str) -> None:
     if not key or not isinstance(key, str):
         raise HTTPException(status_code=400, detail="Key is required")
     if not re.match(r"^[A-Za-z0-9._-]+$", key):
-        raise HTTPException(status_code=400, detail="Key may contain letters, numbers, dot, underscore, or dash")
+        raise HTTPException(
+            status_code=400,
+            detail="Key may contain letters, numbers, dot, underscore, or dash",
+        )
 
 
 # --------------------------- router --------------------------- #
@@ -97,7 +107,9 @@ router = APIRouter(prefix="/brands", tags=["brands"])
 
 
 @router.get("/", summary="List brands")
-def list_brands(q: Optional[str] = None, category: Optional[str] = None) -> Dict[str, List[Dict[str, Any]]]:
+def list_brands(
+    q: Optional[str] = None, category: Optional[str] = None
+) -> Dict[str, List[Dict[str, Any]]]:
     """Return the collection (enveloped) with optional filtering:
     - q: case-insensitive substring match against `key`, `name`, or `audience`
     - category: requires the value to be present in `categories`
@@ -111,7 +123,13 @@ def list_brands(q: Optional[str] = None, category: Optional[str] = None) -> Dict
     def keep(b: Dict[str, Any]) -> bool:
         ok = True
         if qnorm:
-            hay = " ".join([str(b.get("key","")), str(b.get("name","")), str(b.get("audience",""))]).lower()
+            hay = " ".join(
+                [
+                    str(b.get("key", "")),
+                    str(b.get("name", "")),
+                    str(b.get("audience", "")),
+                ]
+            ).lower()
             ok = qnorm in hay
         if ok and catnorm:
             cats = [c.lower() for c in (b.get("categories") or [])]
@@ -135,11 +153,15 @@ def create_brand(brand: Brand):
         brands.append(payload)
         _write_store(data)
         # Return 201 on first creation
-        return JSONResponse(status_code=status.HTTP_201_CREATED, content=brand.model_dump())
+        return JSONResponse(
+            status_code=status.HTTP_201_CREATED, content=brand.model_dump()
+        )
     # Upsert existing
     brands[idx].update(payload)
     _write_store(data)
-    return JSONResponse(status_code=status.HTTP_200_OK, content=Brand(**brands[idx]).model_dump())
+    return JSONResponse(
+        status_code=status.HTTP_200_OK, content=Brand(**brands[idx]).model_dump()
+    )
 
 
 @router.get("/{key}", summary="Get a brand by key")
@@ -168,7 +190,9 @@ def update_brand(key: str, upd: BrandUpdate) -> Brand:
     return Brand(**brands[idx])
 
 
-@router.delete("/{key}", status_code=204, summary="Delete a brand", response_class=Response)
+@router.delete(
+    "/{key}", status_code=204, summary="Delete a brand", response_class=Response
+)
 def delete_brand(key: str) -> Response:
     _validate_key(key)
     data = _read_store()

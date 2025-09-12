@@ -8,6 +8,7 @@ from typing import Optional, Dict, Any
 # NOTE: we import Google SDKs lazily inside methods so the app can run without
 # these dependencies in non-analytics code paths or CI where they aren't needed.
 
+
 class GA4ConfigError(RuntimeError):
     """Raised when required GA4 configuration is missing or invalid."""
 
@@ -42,7 +43,9 @@ class GA4Client:
 
     # -------------------- factory helpers --------------------
     @classmethod
-    def from_oauth_refresh_token(cls, client_id: str, client_secret: str, refresh_token: str) -> "GA4Client":
+    def from_oauth_refresh_token(
+        cls, client_id: str, client_secret: str, refresh_token: str
+    ) -> "GA4Client":
         """
         Convenience factory to force OAuth mode with explicit credentials.
         Useful for tests and when you want to bypass env vars.
@@ -66,7 +69,9 @@ class GA4Client:
         inst._sa_path_override = path
         return inst
 
-    def fetch_daily_metrics(self, property_id: Optional[str] = None, days: int = 7) -> Dict[str, Any]:
+    def fetch_daily_metrics(
+        self, property_id: Optional[str] = None, days: int = 7
+    ) -> Dict[str, Any]:
         """
         Wrapper that returns a compact dict of daily metrics for the last `days` period.
         Keys match what our ingestion expects: organic_sessions, conversions, revenue,
@@ -75,7 +80,9 @@ class GA4Client:
         days = max(1, int(days))
         end_dt = dt.date.today()
         start_dt = end_dt - dt.timedelta(days=days - 1)
-        return self.fetch_summary(property_id=property_id, start_date=start_dt, end_date=end_dt)
+        return self.fetch_summary(
+            property_id=property_id, start_date=start_dt, end_date=end_dt
+        )
 
     # -------------------- internal helpers --------------------
     def _load_client_class(self):
@@ -101,11 +108,15 @@ class GA4Client:
             client_secret = os.getenv("GA4_CLIENT_SECRET")
             refresh_token = os.getenv("GA4_REFRESH_TOKEN")
         if not all([client_id, client_secret, refresh_token]):
-            missing = [n for n, v in {
-                "GA4_CLIENT_ID": client_id,
-                "GA4_CLIENT_SECRET": client_secret,
-                "GA4_REFRESH_TOKEN": refresh_token,
-            }.items() if not v]
+            missing = [
+                n
+                for n, v in {
+                    "GA4_CLIENT_ID": client_id,
+                    "GA4_CLIENT_SECRET": client_secret,
+                    "GA4_REFRESH_TOKEN": refresh_token,
+                }.items()
+                if not v
+            ]
             raise GA4ConfigError(
                 f"Missing OAuth env vars: {', '.join(missing)}. "
                 "Set these in your .env or use service account auth."
@@ -127,7 +138,11 @@ class GA4Client:
         )
 
     def _service_account_credentials(self):
-        path = self._sa_path_override or os.getenv("GA4_CREDENTIALS_JSON") or os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+        path = (
+            self._sa_path_override
+            or os.getenv("GA4_CREDENTIALS_JSON")
+            or os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+        )
         if not path or not os.path.exists(path):
             raise GA4ConfigError(
                 "GA4 service account file not found. Set GA4_CREDENTIALS_JSON (or GOOGLE_APPLICATION_CREDENTIALS) to a valid path."
@@ -151,7 +166,9 @@ class GA4Client:
         # Choose auth method: explicit GA4_AUTH_METHOD, else infer
         method = self._auth_method
         if method not in {"oauth", "service_account", None}:
-            raise GA4ConfigError("GA4_AUTH_METHOD must be 'oauth' or 'service_account' if set.")
+            raise GA4ConfigError(
+                "GA4_AUTH_METHOD must be 'oauth' or 'service_account' if set."
+            )
         if method is None:
             # infer from env
             method = "oauth" if os.getenv("GA4_REFRESH_TOKEN") else "service_account"
@@ -257,9 +274,19 @@ class GA4Client:
             # Normalize to UTC ISO strings for period_* fields
             try:
                 if re.match(r"^\d{4}-\d{2}-\d{2}$", dstr):
-                    return dt.datetime.fromisoformat(dstr + "T00:00:00").replace(tzinfo=dt.timezone.utc).isoformat().replace("+00:00", "Z")
+                    return (
+                        dt.datetime.fromisoformat(dstr + "T00:00:00")
+                        .replace(tzinfo=dt.timezone.utc)
+                        .isoformat()
+                        .replace("+00:00", "Z")
+                    )
                 # allow direct ISO
-                return dt.datetime.fromisoformat(dstr).astimezone(dt.timezone.utc).isoformat().replace("+00:00", "Z")
+                return (
+                    dt.datetime.fromisoformat(dstr)
+                    .astimezone(dt.timezone.utc)
+                    .isoformat()
+                    .replace("+00:00", "Z")
+                )
             except Exception:
                 # handle relative tokens like 'today', 'yesterday', '7daysAgo'
                 now = dt.datetime.utcnow().replace(microsecond=0)
@@ -272,7 +299,11 @@ class GA4Client:
                     m = re.match(r"(\d+)daysAgo", dstr)
                     days = int(m.group(1)) if m else 7
                     start_dt = now - dt.timedelta(days=days)
-                return start_dt.replace(tzinfo=dt.timezone.utc).isoformat().replace("+00:00", "Z")
+                return (
+                    start_dt.replace(tzinfo=dt.timezone.utc)
+                    .isoformat()
+                    .replace("+00:00", "Z")
+                )
 
         return {
             "organic_sessions": int(total_sessions),

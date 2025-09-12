@@ -10,10 +10,12 @@ from sqlalchemy import or_, func
 
 from src.db.session import get_db
 from src.db.models import ContentItem
+
 # Prefer the CRUD helper; provide a safe fallback if it's unavailable
 try:
     from src.db.crud.content_crud import search_content_items  # type: ignore
 except Exception:  # pragma: no cover - fallback path
+
     def search_content_items(db, q=None, domain=None, limit=20, offset=0):
         """Fallback search using direct ORM if CRUD module isn't available.
         Returns (total, rows) similar to the real helper.
@@ -23,15 +25,21 @@ except Exception:  # pragma: no cover - fallback path
             # Join to Site if relationship/column exists; otherwise skip silently
             try:
                 from src.db.models import Site  # local import to avoid circulars
-                qry = qry.join(Site, ContentItem.site_id == Site.id).filter(Site.domain == domain)
+
+                qry = qry.join(Site, ContentItem.site_id == Site.id).filter(
+                    Site.domain == domain
+                )
             except Exception:
                 pass
         if q:
             like = f"%{q}%"
-            qry = qry.filter((ContentItem.title.ilike(like)) | (ContentItem.url.ilike(like)))
+            qry = qry.filter(
+                (ContentItem.title.ilike(like)) | (ContentItem.url.ilike(like))
+            )
         total = qry.count()
         rows = qry.order_by(ContentItem.id.desc()).offset(offset).limit(limit).all()
         return total, rows
+
 
 # Embedding provider (hash-based fallback if real provider is unavailable)
 try:
@@ -44,8 +52,10 @@ router = APIRouter(prefix="/content", tags=["content"])
 
 class _HashEmbedder:
     """Deterministic, dependency-free embedding fallback."""
+
     def __init__(self, dim: int = 128):
         self.dim = dim
+
     def _vec(self, s: str):
         # Very simple, stable hash -> pseudo-vector
         acc = [0] * self.dim
@@ -54,12 +64,16 @@ class _HashEmbedder:
             acc[h % self.dim] += ((h >> 24) & 0xFF) - 128
         # L2 normalize
         import math
+
         norm = math.sqrt(sum(v * v for v in acc)) or 1.0
         return [round(v / norm, 6) for v in acc]
+
     def embed(self, text: str):
         return self._vec(text or "")
+
     def embed_batch(self, texts):
         return [self.embed(t) for t in texts]
+
 
 def _resolve_embedder():
     """Return an embedder with .embed() and .embed_batch(). Honors env if provider is available."""
@@ -92,17 +106,33 @@ def _serialize_item(item: ContentItem) -> Dict[str, Any]:
         "schema_types": item.schema_types or [],
         "freshness_score": item.freshness_score,
         "lastmod": item.lastmod.isoformat() if getattr(item, "lastmod", None) else None,
-        "date_published": item.date_published.isoformat() if getattr(item, "date_published", None) else None,
-        "date_modified": item.date_modified.isoformat() if getattr(item, "date_modified", None) else None,
+        "date_published": (
+            item.date_published.isoformat()
+            if getattr(item, "date_published", None)
+            else None
+        ),
+        "date_modified": (
+            item.date_modified.isoformat()
+            if getattr(item, "date_modified", None)
+            else None
+        ),
     }
 
 
 class ReembedRequest(BaseModel):
-    domain: Optional[str] = Field(default=None, description="Restrict to this site domain")
-    scope: str = Field(default="missing", description="One of: 'missing', 'all', or 'single'")
+    domain: Optional[str] = Field(
+        default=None, description="Restrict to this site domain"
+    )
+    scope: str = Field(
+        default="missing", description="One of: 'missing', 'all', or 'single'"
+    )
     batch_size: int = Field(default=200, ge=1, le=2000)
-    provider: Optional[str] = Field(default=None, description="Override provider by name (if supported)")
-    url: Optional[str] = Field(default=None, description="Required if scope is 'single'")
+    provider: Optional[str] = Field(
+        default=None, description="Override provider by name (if supported)"
+    )
+    url: Optional[str] = Field(
+        default=None, description="Required if scope is 'single'"
+    )
 
 
 @router.get("/health")
@@ -114,8 +144,12 @@ def health() -> Dict[str, str]:
 # Embedding info endpoint: returns provider/config/dim/sample norm without embedding any content
 @router.get("/embedding-info")
 def embedding_info(
-    provider: Optional[str] = Query(None, description="Override provider name for inspection (does not re-embed)"),
-    dim: Optional[int] = Query(None, ge=1, le=8192, description="Override embedding dimension for inspection"),
+    provider: Optional[str] = Query(
+        None, description="Override provider name for inspection (does not re-embed)"
+    ),
+    dim: Optional[int] = Query(
+        None, ge=1, le=8192, description="Override embedding dimension for inspection"
+    ),
 ) -> Dict[str, Any]:
     """
     Returns the active embedding provider info without re-embedding any content.
@@ -127,7 +161,9 @@ def embedding_info(
     # Query param overrides take precedence over env
     requested_provider = provider or configured
     try:
-        dim_override = dim if dim is not None else (int(dim_env) if dim_env.isdigit() else None)
+        dim_override = (
+            dim if dim is not None else (int(dim_env) if dim_env.isdigit() else None)
+        )
     except Exception:
         dim_override = dim if dim is not None else None
 
@@ -140,7 +176,9 @@ def embedding_info(
             prov = get_embedding_provider(provider_name=requested_provider, dim_override=dim_override)  # type: ignore
             if hasattr(prov, "embed") and hasattr(prov, "embed_batch"):
                 embedder = prov
-                provider_name = getattr(prov, "name", None) or requested_provider or "custom"
+                provider_name = (
+                    getattr(prov, "name", None) or requested_provider or "custom"
+                )
         except Exception:
             embedder = None
 
@@ -151,7 +189,9 @@ def embedding_info(
         else:
             embedder = _resolve_embedder()
         # Label fallback provider
-        provider_name = getattr(embedder, "name", None) or ((requested_provider or configured) or "hash-fallback")
+        provider_name = getattr(embedder, "name", None) or (
+            (requested_provider or configured) or "hash-fallback"
+        )
 
     # Determine effective dimension and sample vector norm
     try:
@@ -174,7 +214,7 @@ def embedding_info(
             for v in sample_vec:
                 s += float(v) * float(v)
             # Avoid sqrt import; exponent **0.5 is fine
-            sample_norm = round(s ** 0.5, 6)
+            sample_norm = round(s**0.5, 6)
         except Exception:
             sample_norm = None
 
@@ -192,7 +232,9 @@ def embedding_info(
 @router.get("/search")
 def search(
     q: Optional[str] = Query(None, description="Search query for title/url."),
-    domain: Optional[str] = Query(None, description="Filter by site domain (optional)."),
+    domain: Optional[str] = Query(
+        None, description="Filter by site domain (optional)."
+    ),
     limit: int = Query(20, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
@@ -229,7 +271,9 @@ def get_item(item_id: int, db: Session = Depends(get_db)) -> Dict[str, Any]:
 @router.get("/debug/search")
 def debug_search(
     q: Optional[str] = Query(None, description="Search query for title/url."),
-    domain: Optional[str] = Query(None, description="Filter by site domain (optional)."),
+    domain: Optional[str] = Query(
+        None, description="Filter by site domain (optional)."
+    ),
     limit: int = Query(20, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
@@ -264,6 +308,7 @@ def debug_search(
             "params": {"q": q, "domain": domain, "limit": limit, "offset": offset},
         }
 
+
 @router.post("/reembed")
 def reembed(req: ReembedRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
     # Resolve embedder (optionally overridden provider name)
@@ -283,7 +328,10 @@ def reembed(req: ReembedRequest, db: Session = Depends(get_db)) -> Dict[str, Any
     if req.domain:
         try:
             from src.db.models import Site
-            qry = qry.join(Site, ContentItem.site_id == Site.id).filter(Site.domain == req.domain)
+
+            qry = qry.join(Site, ContentItem.site_id == Site.id).filter(
+                Site.domain == req.domain
+            )
         except Exception:
             # Silently ignore domain filter if Sites table isn't present
             pass
@@ -300,13 +348,22 @@ def reembed(req: ReembedRequest, db: Session = Depends(get_db)) -> Dict[str, Any
         pass
     elif req.scope == "single":
         if not req.url:
-            raise HTTPException(status_code=400, detail="url must be provided when scope is 'single'")
+            raise HTTPException(
+                status_code=400, detail="url must be provided when scope is 'single'"
+            )
         qry = qry.filter(ContentItem.url == req.url)
     else:
-        raise HTTPException(status_code=400, detail="scope must be one of: 'missing', 'all', or 'single'")
+        raise HTTPException(
+            status_code=400,
+            detail="scope must be one of: 'missing', 'all', or 'single'",
+        )
 
     # Load only the columns we need so we don't require optional columns that may not exist in older DBs
-    qry = qry.options(load_only(ContentItem.id, ContentItem.title, ContentItem.url, ContentItem.embedding))
+    qry = qry.options(
+        load_only(
+            ContentItem.id, ContentItem.title, ContentItem.url, ContentItem.embedding
+        )
+    )
 
     total = qry.count()
     if total == 0:
@@ -314,7 +371,9 @@ def reembed(req: ReembedRequest, db: Session = Depends(get_db)) -> Dict[str, Any
             "ok": True,
             "requested_scope": req.scope,
             "domain": req.domain,
-            "provider": req.provider or os.getenv("EMBEDDING_PROVIDER", "") or "hash-fallback",
+            "provider": req.provider
+            or os.getenv("EMBEDDING_PROVIDER", "")
+            or "hash-fallback",
             "batch_size": req.batch_size,
             "total_matched": 0,
             "updated": 0,
@@ -336,7 +395,9 @@ def reembed(req: ReembedRequest, db: Session = Depends(get_db)) -> Dict[str, Any
         try:
             vecs = embedder.embed_batch(texts)
         except Exception as exc:
-            raise HTTPException(status_code=500, detail=f"Embedding provider failed: {exc}")
+            raise HTTPException(
+                status_code=500, detail=f"Embedding provider failed: {exc}"
+            )
         # Assign and stage
         for it, vec in zip(batch, vecs):
             # Ensure Postgres JSON column receives a plain list[float]
@@ -357,7 +418,9 @@ def reembed(req: ReembedRequest, db: Session = Depends(get_db)) -> Dict[str, Any
         "ok": True,
         "requested_scope": req.scope,
         "domain": req.domain,
-        "provider": req.provider or os.getenv("EMBEDDING_PROVIDER", "") or "hash-fallback",
+        "provider": req.provider
+        or os.getenv("EMBEDDING_PROVIDER", "")
+        or "hash-fallback",
         "batch_size": req.batch_size,
         "total_matched": total,
         "updated": updated,

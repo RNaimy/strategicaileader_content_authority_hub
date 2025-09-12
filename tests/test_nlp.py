@@ -11,8 +11,14 @@ def test_keyword_frequency_counts_words():
 
 
 def test_contains_all_keywords_true_and_false():
-    assert contains_all_keywords("Growth loops support SEO.", ["growth", "loops", "seo"]) is True
-    assert contains_all_keywords("Growth loops support strategy.", ["growth", "seo"]) is False
+    assert (
+        contains_all_keywords("Growth loops support SEO.", ["growth", "loops", "seo"])
+        is True
+    )
+    assert (
+        contains_all_keywords("Growth loops support strategy.", ["growth", "seo"])
+        is False
+    )
 
 
 def test_top_keywords_orders_desc():

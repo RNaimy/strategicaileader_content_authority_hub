@@ -1,5 +1,3 @@
-
-
 """
 Clustering utilities for content items using embeddings.
 
@@ -52,6 +50,8 @@ def extract_top_terms_per_cluster(
         cluster_indices = [i for i, lbl in enumerate(labels) if lbl == cluster_id]
         cluster_tfidf = tfidf_matrix[cluster_indices].mean(axis=0).A1
         top_indices = cluster_tfidf.argsort()[-top_n:][::-1]
-        cluster_terms[cluster_id] = [(terms[idx], cluster_tfidf[idx]) for idx in top_indices]
+        cluster_terms[cluster_id] = [
+            (terms[idx], cluster_tfidf[idx]) for idx in top_indices
+        ]
 
     return cluster_terms

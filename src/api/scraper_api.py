@@ -18,18 +18,22 @@ from sqlalchemy.exc import IntegrityError
 
 router = APIRouter(prefix="/scraper", tags=["scraper"])
 
+
 class SitemapRequest(BaseModel):
     site_id: int
     sitemap_url: Optional[str] = None
     domain: Optional[str] = None
 
+
 class ScrapePageRequest(BaseModel):
     site_id: int
     url: str
 
+
 class ScrapeBatchRequest(BaseModel):
     site_id: int
     limit: int = 50  # number of pending URLs to enrich
+
 
 @router.get("/health")
 def health() -> dict:
@@ -42,21 +46,30 @@ def _clean_text(text: str) -> str:
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
+
 def _extract_from_html(html: str) -> Dict[str, Optional[str]]:
     """Extract title, meta description and main text from HTML."""
     soup = BeautifulSoup(html, "html.parser")
 
     # Remove script/style/nav/footer/aside/header
-    for tag in soup(["script", "style", "noscript", "template", "nav", "footer", "aside", "header"]):
+    for tag in soup(
+        ["script", "style", "noscript", "template", "nav", "footer", "aside", "header"]
+    ):
         tag.decompose()
 
     # Prefer article/main content blocks if present
     main = soup.find("article") or soup.find("main") or soup.body or soup
 
     title_tag = soup.find("meta", property="og:title") or soup.find("title")
-    title = title_tag.get("content") if title_tag and title_tag.name == "meta" else (title_tag.string if title_tag else None)
+    title = (
+        title_tag.get("content")
+        if title_tag and title_tag.name == "meta"
+        else (title_tag.string if title_tag else None)
+    )
 
-    desc_tag = soup.find("meta", attrs={"name": "description"}) or soup.find("meta", property="og:description")
+    desc_tag = soup.find("meta", attrs={"name": "description"}) or soup.find(
+        "meta", property="og:description"
+    )
     meta_description = desc_tag.get("content") if desc_tag else None
 
     # Basic heuristic for main text
@@ -73,7 +86,10 @@ def _extract_from_html(html: str) -> Dict[str, Optional[str]]:
         "content": _clean_text(content_text or ""),
     }
 
-async def _upsert_content(site_id: int, url: str, fields: Dict[str, Optional[str]]) -> int:
+
+async def _upsert_content(
+    site_id: int, url: str, fields: Dict[str, Optional[str]]
+) -> int:
     """Insert or update a content_items row and return 1 if written."""
     now = datetime.utcnow()
     # Works for Postgres and SQLite thanks to the unique constraint on (site_id, url)
@@ -100,6 +116,7 @@ async def _upsert_content(site_id: int, url: str, fields: Dict[str, Optional[str
     )
     return 1
 
+
 async def _fetch_url_text(url: str) -> str:
     """Fetch a URL and return decoded text. Transparently handles .gz sitemaps."""
     async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
@@ -107,7 +124,11 @@ async def _fetch_url_text(url: str) -> str:
         resp.raise_for_status()
         content_type = resp.headers.get("Content-Type", "")
         raw = resp.content
-        is_gzip = url.lower().endswith(".gz") or "gzip" in content_type or "application/x-gzip" in content_type
+        is_gzip = (
+            url.lower().endswith(".gz")
+            or "gzip" in content_type
+            or "application/x-gzip" in content_type
+        )
         if is_gzip:
             try:
                 raw = gzip.decompress(raw)
@@ -121,6 +142,7 @@ async def _fetch_url_text(url: str) -> str:
             return raw.decode(resp.encoding or "utf-8", errors="replace")
         except Exception:
             return raw.decode("utf-8", errors="replace")
+
 
 def _extract_urls_from_sitemap(xml_text: str) -> Dict[str, List[str]]:
     """
@@ -149,6 +171,7 @@ def _extract_urls_from_sitemap(xml_text: str) -> Dict[str, List[str]]:
     sitemaps = [e.text.strip() for e in sitemap_elems if e is not None and e.text]
     return {"urls": urls, "sitemaps": sitemaps}
 
+
 async def _discover_sitemaps(domain: str) -> List[str]:
     """
     Try robots.txt discovery and fall back to common sitemap endpoints.
@@ -159,7 +182,9 @@ async def _discover_sitemaps(domain: str) -> List[str]:
     robots_url = f"https://{domain}/robots.txt"
     try:
         async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
-            r = await client.get(robots_url, headers={"User-Agent": "ContentHubBot/1.0"})
+            r = await client.get(
+                robots_url, headers={"User-Agent": "ContentHubBot/1.0"}
+            )
             if r.status_code < 400 and r.text:
                 for line in r.text.splitlines():
                     line = line.strip()
@@ -173,10 +198,12 @@ async def _discover_sitemaps(domain: str) -> List[str]:
         pass
 
     # Common fallbacks
-    candidates.extend([
-        f"https://{domain}/sitemap_index.xml",
-        f"https://{domain}/sitemap.xml",
-    ])
+    candidates.extend(
+        [
+            f"https://{domain}/sitemap_index.xml",
+            f"https://{domain}/sitemap.xml",
+        ]
+    )
 
     # De-duplicate preserving order
     seen = set()
@@ -187,7 +214,10 @@ async def _discover_sitemaps(domain: str) -> List[str]:
             seen.add(c)
     return out
 
-async def _gather_all_sitemap_urls(entry_url: str, max_sitemaps: int = 50) -> Dict[str, List[str]]:
+
+async def _gather_all_sitemap_urls(
+    entry_url: str, max_sitemaps: int = 50
+) -> Dict[str, List[str]]:
     """
     Given a sitemap *or* sitemap index URL, return aggregated:
       {
@@ -225,11 +255,14 @@ async def _gather_all_sitemap_urls(entry_url: str, max_sitemaps: int = 50) -> Di
             seen.add(u)
     return {"from_sitemaps": seen_sitemaps, "page_urls": uniq}
 
+
 @router.post("/scrape-page")
 async def scrape_page(req: ScrapePageRequest):
     async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
         try:
-            resp = await client.get(req.url, headers={"User-Agent": "ContentHubBot/1.0"})
+            resp = await client.get(
+                req.url, headers={"User-Agent": "ContentHubBot/1.0"}
+            )
             resp.raise_for_status()
         except httpx.HTTPError as e:
             raise HTTPException(status_code=502, detail=f"Failed to fetch URL: {e}")
@@ -245,6 +278,7 @@ async def scrape_page(req: ScrapePageRequest):
         "meta_len": len(fields.get("meta_description", "") or ""),
         "content_len": len(fields.get("content", "") or ""),
     }
+
 
 @router.post("/scrape")
 async def scrape(req: ScrapePageRequest):
@@ -263,17 +297,26 @@ async def scrape_batch(req: ScrapeBatchRequest):
         ORDER BY id DESC
         LIMIT :limit
     """
-    rows = await database.fetch_all(select_query, values={"site_id": req.site_id, "limit": req.limit})
+    rows = await database.fetch_all(
+        select_query, values={"site_id": req.site_id, "limit": req.limit}
+    )
     urls = [r["url"] for r in rows]
 
     results: List[Dict[str, object]] = []
     if not urls:
-        return {"site_id": req.site_id, "requested": req.limit, "processed": 0, "results": results}
+        return {
+            "site_id": req.site_id,
+            "requested": req.limit,
+            "processed": 0,
+            "results": results,
+        }
 
     async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
         for url in urls:
             try:
-                resp = await client.get(url, headers={"User-Agent": "ContentHubBot/1.0"})
+                resp = await client.get(
+                    url, headers={"User-Agent": "ContentHubBot/1.0"}
+                )
                 resp.raise_for_status()
                 fields = _extract_from_html(resp.text)
                 await _upsert_content(req.site_id, url, fields)
@@ -281,7 +324,13 @@ async def scrape_batch(req: ScrapeBatchRequest):
             except httpx.HTTPError as e:
                 results.append({"url": url, "ok": False, "error": str(e)})
 
-    return {"site_id": req.site_id, "requested": req.limit, "processed": len(results), "results": results}
+    return {
+        "site_id": req.site_id,
+        "requested": req.limit,
+        "processed": len(results),
+        "results": results,
+    }
+
 
 @router.post("/sitemap")
 async def process_sitemap_post(data: SitemapRequest):
@@ -292,10 +341,17 @@ async def process_sitemap_post(data: SitemapRequest):
     elif data.domain:
         discovered = await _discover_sitemaps(data.domain)
         if not discovered:
-            return {"error": "No sitemap endpoints discovered via robots.txt or defaults.", "site_id": data.site_id, "domain": data.domain}
+            return {
+                "error": "No sitemap endpoints discovered via robots.txt or defaults.",
+                "site_id": data.site_id,
+                "domain": data.domain,
+            }
         chosen_sitemaps = discovered
     else:
-        return {"error": "Either sitemap_url or domain must be provided", "site_id": data.site_id}
+        return {
+            "error": "Either sitemap_url or domain must be provided",
+            "site_id": data.site_id,
+        }
 
     # Try each candidate until we successfully parse *something*
     aggregated_urls: List[str] = []
@@ -327,7 +383,12 @@ async def process_sitemap_post(data: SitemapRequest):
             # Executes an INSERT; if the row already exists, DO NOTHING means 0 rows affected.
             await database.execute(
                 query=insert_query,
-                values={"site_id": data.site_id, "url": url, "created_at": now, "updated_at": now},
+                values={
+                    "site_id": data.site_id,
+                    "url": url,
+                    "created_at": now,
+                    "updated_at": now,
+                },
             )
             # We can't rely on rowcount with `databases`, so check existence immediately after.
             exists = await database.fetch_one(
@@ -379,12 +440,21 @@ async def process_sitemap_post(data: SitemapRequest):
         "skipped_existing": total_urls_found - inserted_count,
     }
 
+
 @router.get("/sitemap")
-async def process_sitemap_get(site_id: int = Query(...), domain: str = Query(...), limit: int = Query(0, ge=0, le=50000)):
+async def process_sitemap_get(
+    site_id: int = Query(...),
+    domain: str = Query(...),
+    limit: int = Query(0, ge=0, le=50000),
+):
     # Discover endpoints and choose the first that yields URLs
     discovered = await _discover_sitemaps(domain)
     if not discovered:
-        return {"error": "No sitemap endpoints discovered via robots.txt or defaults.", "site_id": site_id, "domain": domain}
+        return {
+            "error": "No sitemap endpoints discovered via robots.txt or defaults.",
+            "site_id": site_id,
+            "domain": domain,
+        }
 
     aggregated_urls: List[str] = []
     used: str = ""
@@ -417,7 +487,12 @@ async def process_sitemap_get(site_id: int = Query(...), domain: str = Query(...
         try:
             await database.execute(
                 query=insert_query,
-                values={"site_id": site_id, "url": url, "created_at": now, "updated_at": now},
+                values={
+                    "site_id": site_id,
+                    "url": url,
+                    "created_at": now,
+                    "updated_at": now,
+                },
             )
         except IntegrityError:
             continue

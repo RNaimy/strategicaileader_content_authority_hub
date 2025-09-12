@@ -5,6 +5,7 @@ Revises: 679eebd7036d
 Create Date: 2025-08-31 20:33:22.588078
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -12,8 +13,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '8ea2ec68c1d2'
-down_revision: Union[str, Sequence[str], None] = '679eebd7036d'
+revision: str = "8ea2ec68c1d2"
+down_revision: Union[str, Sequence[str], None] = "679eebd7036d"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -26,9 +27,16 @@ def upgrade() -> None:
 
     # Define columns we want to ensure exist: mapping of name -> SQLAlchemy Column
     desired = {
-        "captured_at": sa.Column("captured_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+        "captured_at": sa.Column(
+            "captured_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+        ),
         "source_row_count": sa.Column("source_row_count", sa.Integer(), nullable=True),
-        "content_items_count": sa.Column("content_items_count", sa.Integer(), nullable=True),
+        "content_items_count": sa.Column(
+            "content_items_count", sa.Integer(), nullable=True
+        ),
         "pages_indexed": sa.Column("pages_indexed", sa.Integer(), nullable=True),
         "indexed_pct": sa.Column("indexed_pct", sa.Float(), nullable=True),
         "average_position": sa.Column("average_position", sa.Float(), nullable=True),

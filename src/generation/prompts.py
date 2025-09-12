@@ -14,13 +14,15 @@ class PromptConfig:
     keywords: Optional[List[str]] = None
     sources: Optional[List[str]] = None
     call_to_action: Optional[str] = "Invite readers to subscribe to StrategicAILeader."
-    constraints: Optional[List[str]] = field(default_factory=lambda: [
-        "Write at a 9th–11th grade reading level.",
-        "Avoid fluff—every paragraph must add value.",
-        "Prefer active voice.",
-        "Use short paragraphs (2–4 sentences) and scannable subheads.",
-        "Include 1 brief, concrete example per major section.",
-    ])
+    constraints: Optional[List[str]] = field(
+        default_factory=lambda: [
+            "Write at a 9th–11th grade reading level.",
+            "Avoid fluff—every paragraph must add value.",
+            "Prefer active voice.",
+            "Use short paragraphs (2–4 sentences) and scannable subheads.",
+            "Include 1 brief, concrete example per major section.",
+        ]
+    )
     format: str = "markdown"  # markdown | html | text
     include_seo_block: bool = True
 
@@ -55,9 +57,13 @@ def build_article_prompt(cfg: PromptConfig) -> str:
     secondary_keywords_csv = _csv(cfg.secondary_keywords)
     sources_block = _bullet(cfg.sources, prefix="• ")
     constraints_block = _bullet(cfg.constraints)
-    internal_links_block = _bullet(cfg.internal_links, prefix="• ") if cfg.internal_links else ""
+    internal_links_block = (
+        _bullet(cfg.internal_links, prefix="• ") if cfg.internal_links else ""
+    )
 
-    mission_context = f"Mission: {cfg.mission_statement}" if cfg.mission_statement else ""
+    mission_context = (
+        f"Mission: {cfg.mission_statement}" if cfg.mission_statement else ""
+    )
     vision_context = f"Vision: {cfg.vision_statement}" if cfg.vision_statement else ""
 
     seo_block = ""
@@ -148,7 +154,9 @@ def build_substack_prompt(
 ) -> str:
     """Substack-ready post scaffold with SEO pieces and CTA back to full article."""
     tags_csv = _csv(tags or cfg.keywords)
-    link_line = f"\nPrimary CTA: Read the full article → {article_url}" if article_url else ""
+    link_line = (
+        f"\nPrimary CTA: Read the full article → {article_url}" if article_url else ""
+    )
     return f"""Create a Substack post in {cfg.format}.
 Topic: {cfg.topic}
 Audience: {cfg.audience}
@@ -202,7 +210,9 @@ def build_multichannel_bundle(
     bundle = {
         "article": build_article_prompt(cfg),
         "linkedin": build_linkedin_prompt(cfg, article_url=article_url),
-        "substack": build_substack_prompt(cfg, article_url=article_url, tags=substack_tags),
+        "substack": build_substack_prompt(
+            cfg, article_url=article_url, tags=substack_tags
+        ),
     }
     if include_seo_snippets:
         bundle["seo_snippets"] = build_seo_snippets_prompt(cfg)

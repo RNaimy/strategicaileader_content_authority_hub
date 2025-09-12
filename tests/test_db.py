@@ -9,6 +9,7 @@ import sqlite3
 import tempfile
 from src.utils import db
 from concurrent.futures import ThreadPoolExecutor
+
 # Determine backend once for skip conditions
 _BACKEND = db.get_engine().url.get_backend_name()
 
@@ -141,9 +142,11 @@ import threading
 import time
 from src.utils.db import get_session
 
+
 def test_concurrent_sessions():
     """Ensure get_session creates independent sessions safely under concurrent load."""
     results = []
+
     def session_task():
         with get_session() as session:
             session.execute(text("SELECT 1"))
@@ -158,6 +161,7 @@ def test_concurrent_sessions():
     # Expect 5 sessions and all of them were active independently
     assert len(results) == 5
     assert all(results)
+
 
 def test_session_closes_properly():
     """Ensure session closes after context manager exit."""
@@ -174,7 +178,9 @@ def test_session_closes_properly():
     session.close()
 
 
-@pytest.mark.skip(reason="Disabled due to thread instability with SQLite in-memory; covered by other tests.")
+@pytest.mark.skip(
+    reason="Disabled due to thread instability with SQLite in-memory; covered by other tests."
+)
 def test_high_concurrency_sessions():
     """Stress test: spin up many concurrent sessions and ensure all complete without errors."""
     # Ensure we're using an in-memory DB for speed/isolation

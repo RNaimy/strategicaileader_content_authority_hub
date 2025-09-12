@@ -48,6 +48,11 @@ try:
 except Exception:  # pragma: no cover
     intelligence_router = None  # type: ignore[assignment]
 
+try:
+    from src.api.semantic_api import router as semantic_router  # type: ignore
+except Exception:  # pragma: no cover
+    semantic_router = None  # type: ignore[assignment]
+
 
 app = FastAPI(
     title="Content Authority Hub",
@@ -108,6 +113,9 @@ if "sod_router" in globals() and sod_router is not None:
     app.include_router(sod_router, prefix="/sod", tags=["sod"])
 if "citation_router" in globals() and citation_router is not None:
     app.include_router(citation_router, prefix="/citations", tags=["citations"])
+
+if semantic_router is not None:
+    app.include_router(semantic_router)
 
 app.include_router(clustering_router)
 app.include_router(content_router)

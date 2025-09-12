@@ -17,9 +17,11 @@ from sqlalchemy import desc, func
 from sqlalchemy.orm import Session
 
 from src.db.models import ImprovementRecommendation
+
 try:
     # If ContentItem exists in your models, import it; if not, the recompute stub will skip content-based rules.
     from src.db.models import ContentItem  # type: ignore
+
     HAS_CONTENT_ITEM = True
 except Exception:
     HAS_CONTENT_ITEM = False
@@ -29,7 +31,10 @@ except Exception:
 # Read helpers used by the API
 # ---------------------------
 
-def get_quick_wins(db: Session, site_id: int, limit: int = 50) -> List[ImprovementRecommendation]:
+
+def get_quick_wins(
+    db: Session, site_id: int, limit: int = 50
+) -> List[ImprovementRecommendation]:
     return (
         db.query(ImprovementRecommendation)
         .filter(ImprovementRecommendation.site_id == site_id)
@@ -40,7 +45,9 @@ def get_quick_wins(db: Session, site_id: int, limit: int = 50) -> List[Improveme
     )
 
 
-def get_content_at_risk(db: Session, site_id: int, limit: int = 50) -> List[ImprovementRecommendation]:
+def get_content_at_risk(
+    db: Session, site_id: int, limit: int = 50
+) -> List[ImprovementRecommendation]:
     return (
         db.query(ImprovementRecommendation)
         .filter(ImprovementRecommendation.site_id == site_id)
@@ -51,7 +58,9 @@ def get_content_at_risk(db: Session, site_id: int, limit: int = 50) -> List[Impr
     )
 
 
-def get_topics_emerging(db: Session, site_id: int, limit: int = 50) -> List[ImprovementRecommendation]:
+def get_topics_emerging(
+    db: Session, site_id: int, limit: int = 50
+) -> List[ImprovementRecommendation]:
     return (
         db.query(ImprovementRecommendation)
         .filter(ImprovementRecommendation.site_id == site_id)
@@ -66,7 +75,10 @@ def get_topics_emerging(db: Session, site_id: int, limit: int = 50) -> List[Impr
 # Dev-only: simple recompute to seed data
 # ----------------------------------------
 
-def recompute_recommendations(db: Session, site_id: int, limit: int = 100) -> Dict[str, Any]:
+
+def recompute_recommendations(
+    db: Session, site_id: int, limit: int = 100
+) -> Dict[str, Any]:
     """
     Minimal, SQLite-safe seeding logic so you can test the Phase 9 endpoints locally.
 
@@ -82,7 +94,12 @@ def recompute_recommendations(db: Session, site_id: int, limit: int = 100) -> Di
     written = {"quick_win": 0, "at_risk": 0, "emerging_topic": 0}
 
     # Helper: insert if a similar rationale doesn't already exist for the same content/flag
-    def _insert_unique(flag: str, score: Optional[float], rationale: Dict[str, Any], content_item_id: Optional[int] = None) -> None:
+    def _insert_unique(
+        flag: str,
+        score: Optional[float],
+        rationale: Dict[str, Any],
+        content_item_id: Optional[int] = None,
+    ) -> None:
         existing = (
             db.query(ImprovementRecommendation)
             .filter(ImprovementRecommendation.site_id == site_id)
@@ -138,7 +155,10 @@ def recompute_recommendations(db: Session, site_id: int, limit: int = 100) -> Di
         for cid, title_len in long_title_q.all():
             _insert_unique(
                 flag="quick_win",
-                score=0.7 + min(0.2, (title_len - 60) / 100.0),  # slight lift for very long titles
+                score=0.7
+                + min(
+                    0.2, (title_len - 60) / 100.0
+                ),  # slight lift for very long titles
                 rationale={
                     "reason": "long_title_opt",
                     "title_length": int(title_len or 0),

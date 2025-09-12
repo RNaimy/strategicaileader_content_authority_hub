@@ -8,6 +8,7 @@ Endpoints:
 - POST /clusters/commit: Commit cluster assignments to the database for a given domain.
 - POST /clusters/clear: Clear all cluster assignments for a given domain.
 """
+
 from typing import List, Dict, Any, Optional, Tuple, cast
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -35,13 +36,16 @@ from src.db.models import ContentItem, Site
 
 router = APIRouter(prefix="/clusters", tags=["clustering"])  # mounted by src/main.py
 
+
 def _debug_enabled() -> bool:
     val = os.getenv("APP_DEBUG", "").lower().strip()
     return val in {"1", "true", "yes", "on"}
 
+
 # ----------------------------
 # Helpers (no heavy deps)
 # ----------------------------
+
 
 def _get_db():
     db = SessionLocal()
@@ -49,6 +53,7 @@ def _get_db():
         yield db
     finally:
         db.close()
+
 
 def _get_site_by_domain(db: Session, domain: str):
     return db.query(Site).filter(Site.domain == domain).first()
@@ -66,6 +71,7 @@ def _url_path(u: str) -> str:
     except Exception:
         return u
 
+
 def _is_homepage(u: str) -> bool:
     try:
         p = urlparse(u)
@@ -78,15 +84,19 @@ def _l2_normalize(vec: List[float]) -> List[float]:
     s = sum((float(x) * float(x)) for x in vec)
     if s <= 0.0:
         return [0.0 for _ in vec]
-    inv = 1.0 / (s ** 0.5)
+    inv = 1.0 / (s**0.5)
     return [float(x) * inv for x in vec]
 
-def _rows_and_vectors(rows: List[ContentItem]) -> Tuple[List[ContentItem], List[List[float]]]:
+
+def _rows_and_vectors(
+    rows: List[ContentItem],
+) -> Tuple[List[ContentItem], List[List[float]]]:
     """
     Parse each row.embedding which may be a list, tuple, JSON string, or dict, and coerce to float vectors.
     Filters out rows with missing/invalid embeddings. Pads/truncates to common dimension.
     Returns (filtered_rows, normalized_vectors).
     """
+
     def to_vec(val: Any) -> List[float]:
         if val is None:
             return []
@@ -134,6 +144,7 @@ def _rows_and_vectors(rows: List[ContentItem]) -> Tuple[List[ContentItem], List[
     normed = [_l2_normalize(v) for v in normed]
     return keep_rows, normed
 
+
 def _cosine(a: List[float], b: List[float]) -> float:
     """
     Compute cosine similarity between two vectors a and b using pure Python.
@@ -150,10 +161,12 @@ def _cosine(a: List[float], b: List[float]) -> float:
         nb += bi * bi
     if na == 0.0 or nb == 0.0:
         return 0.0
-    return dot / ((na ** 0.5) * (nb ** 0.5))
+    return dot / ((na**0.5) * (nb**0.5))
 
 
-def _kmeans(vectors: List[List[float]], k: int, max_iter: int = 50, seed: int = 42) -> List[int]:
+def _kmeans(
+    vectors: List[List[float]], k: int, max_iter: int = 50, seed: int = 42
+) -> List[int]:
     """Very small KMeans (euclidean) to avoid pulling sklearn.
     Returns a list of cluster assignments same length as vectors.
     Note: This is a lightweight implementation and may not scale well for very large datasets.
@@ -231,7 +244,9 @@ def _normalize_vectors(rows: List[ContentItem]) -> List[List[float]]:
     return normed
 
 
-def _centroids(assigns: List[int], vectors: List[List[float]], k: int) -> List[List[float]]:
+def _centroids(
+    assigns: List[int], vectors: List[List[float]], k: int
+) -> List[List[float]]:
     if not vectors:
         return []
     dim = len(vectors[0])
@@ -256,16 +271,67 @@ def _centroids(assigns: List[int], vectors: List[List[float]], k: int) -> List[L
 
 _STOPWORDS = {
     # generic stopwords
-    "the","a","an","and","or","but","if","then","than","that","this","to","of","on","in","for","with","by","as","at","be","is","are","was","were","it","its","from","into","your","you","we","our","us",
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "but",
+    "if",
+    "then",
+    "than",
+    "that",
+    "this",
+    "to",
+    "of",
+    "on",
+    "in",
+    "for",
+    "with",
+    "by",
+    "as",
+    "at",
+    "be",
+    "is",
+    "are",
+    "was",
+    "were",
+    "it",
+    "its",
+    "from",
+    "into",
+    "your",
+    "you",
+    "we",
+    "our",
+    "us",
     # site/brand/common
-    "strategicaileader","strategicaileader.com","leader","leaders","richard","naimy","com","www",
+    "strategicaileader",
+    "strategicaileader.com",
+    "leader",
+    "leaders",
+    "richard",
+    "naimy",
+    "com",
+    "www",
     # url fragments, generic tokens
-    "http","https",
+    "http",
+    "https",
     # common marketing / boilerplate fillers that don't help labels
-    "guide","tips","playbook","best","practices","strategy","strategies","framework","intro","introduction",
+    "guide",
+    "tips",
+    "playbook",
+    "best",
+    "practices",
+    "strategy",
+    "strategies",
+    "framework",
+    "intro",
+    "introduction",
 }
 
 _token_re = re.compile(r"[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)*")
+
 
 def _merge_stopwords(extra: Optional[str]) -> set:
     """Merge built-in stopwords with optional comma/space-separated extras.
@@ -281,6 +347,7 @@ def _merge_stopwords(extra: Optional[str]) -> set:
                 s.add(p)
     return s
 
+
 def _tokenize(text: str, stopwords: Optional[set] = None) -> List[str]:
     if not text:
         return []
@@ -288,14 +355,16 @@ def _tokenize(text: str, stopwords: Optional[set] = None) -> List[str]:
     toks = [t.lower() for t in _token_re.findall(text)]
     return [t for t in toks if t not in sw and len(t) >= 2]
 
+
 def _generate_ngrams(tokens: List[str], n_min: int = 1, n_max: int = 2) -> List[str]:
     out: List[str] = []
     L = len(tokens)
     for n in range(n_min, n_max + 1):
         for i in range(L - n + 1):
-            ng = " ".join(tokens[i:i+n])
+            ng = " ".join(tokens[i : i + n])
             out.append(ng)
     return out
+
 
 def _tfidf_labels(
     texts: List[str],
@@ -350,13 +419,23 @@ def _tfidf_labels(
     for term, _ in scored:
         if len(labels) >= top_n:
             break
-        if dedupe_substrings and any(term in chosen or chosen in term for chosen in labels):
+        if dedupe_substrings and any(
+            term in chosen or chosen in term for chosen in labels
+        ):
             # skip terms that are substrings or superstrings of already-chosen labels
             continue
         labels.append(term)
     return labels
 
-def _nearest_to_centroid(rows: List['ContentItem'], vectors: List[List[float]], assigns: List[int], centroids: List[List[float]], cid: int, take: int = 5) -> List[str]:
+
+def _nearest_to_centroid(
+    rows: List["ContentItem"],
+    vectors: List[List[float]],
+    assigns: List[int],
+    centroids: List[List[float]],
+    cid: int,
+    take: int = 5,
+) -> List[str]:
     idxs = [i for i, a in enumerate(assigns) if a == cid]
     pairs: List[Tuple[float, int]] = []
     for i in idxs:
@@ -377,15 +456,18 @@ def _nearest_to_centroid(rows: List['ContentItem'], vectors: List[List[float]], 
 # Response schemas
 # ----------------------------
 
+
 class ClusterItem(BaseModel):
     url: str
     title: Optional[str] = None
     score: Optional[float] = None
 
+
 class ClusterPreview(BaseModel):
     cluster_id: int
     size: int
     items: List[ClusterItem]
+
 
 class PreviewResponse(BaseModel):
     domain: str
@@ -395,10 +477,12 @@ class PreviewResponse(BaseModel):
     embedding_dim: int
     clusters: List[ClusterPreview]
 
+
 class LinkSuggestion(BaseModel):
     source_url: str
     target_url: str
     similarity: float
+
 
 class LinkSuggestionsResponse(BaseModel):
     domain: str
@@ -412,6 +496,7 @@ class ClusterTopic(BaseModel):
     label_terms: List[str]
     sample_titles: List[str]
 
+
 class TopicsResponse(BaseModel):
     domain: str
     k: int
@@ -419,11 +504,13 @@ class TopicsResponse(BaseModel):
     embedding_dim: int
     clusters: List[ClusterTopic]
 
+
 class CommitRequest(BaseModel):
     domain: str
     k: int = 8
     seed: int = 42
     max_items: int = 1000
+
 
 class CommitResponse(BaseModel):
     domain: str
@@ -431,8 +518,10 @@ class CommitResponse(BaseModel):
     updated: int
     total_with_embeddings: int
 
+
 class ClearRequest(BaseModel):
     domain: str
+
 
 class ClearResponse(BaseModel):
     domain: str
@@ -452,17 +541,23 @@ class ClusterStatusResponse(BaseModel):
 # ----------------------------
 # Endpoints
 
+
 # Health check for the clustering router
 @router.get("/health")
 def clusters_health():
     return {"ok": True}
+
+
 # ----------------------------
+
 
 # Cluster status/summary endpoint
 @router.get("/status", response_model=ClusterStatusResponse)
 def clusters_status(
     domain: str = Query(..., description="Site domain (e.g. strategicaileader.com)"),
-    max_items: int = Query(5000, ge=1, le=20000, description="Max items to sample for embedding dimension"),
+    max_items: int = Query(
+        5000, ge=1, le=20000, description="Max items to sample for embedding dimension"
+    ),
     db: Session = Depends(_get_db),
 ):
     """
@@ -472,7 +567,9 @@ def clusters_status(
     try:
         site = _get_site_by_domain(db, domain)
         if not site:
-            raise HTTPException(status_code=404, detail=f"Site not found for domain '{domain}'")
+            raise HTTPException(
+                status_code=404, detail=f"Site not found for domain '{domain}'"
+            )
 
         total_items = (
             db.query(func.count(ContentItem.id))
@@ -528,25 +625,41 @@ def clusters_status(
         if _debug_enabled():
             tb = "\n".join(traceback.format_exception_only(type(e), e)).strip()
             tb_tail = "\n".join(traceback.format_exc().splitlines()[-6:])
-            raise HTTPException(status_code=500, detail=f"clusters_status error: {tb}\n{tb_tail}")
-        raise HTTPException(status_code=500, detail="Internal error while fetching clustering status. Enable APP_DEBUG=1 for details.")
+            raise HTTPException(
+                status_code=500, detail=f"clusters_status error: {tb}\n{tb_tail}"
+            )
+        raise HTTPException(
+            status_code=500,
+            detail="Internal error while fetching clustering status. Enable APP_DEBUG=1 for details.",
+        )
+
+
 # ----------------------------
+
 
 #
 # Preview clusters without committing to DB
 @router.get("/preview", response_model=PreviewResponse)
 def preview_clusters(
-    domain: str = Query(..., description="Site domain to cluster (e.g. strategicaileader.com)"),
+    domain: str = Query(
+        ..., description="Site domain to cluster (e.g. strategicaileader.com)"
+    ),
     k: int = Query(8, ge=1, le=50, description="Number of clusters (default 8)"),
     top_n: int = Query(5, ge=1, le=50, description="Top items to show per cluster"),
-    max_items: int = Query(800, ge=1, le=5000, description="Max items to load (protects memory)"),
-    seed: int = Query(42, description="Random seed for KMeans initialization (default 42)"),
+    max_items: int = Query(
+        800, ge=1, le=5000, description="Max items to load (protects memory)"
+    ),
+    seed: int = Query(
+        42, description="Random seed for KMeans initialization (default 42)"
+    ),
     db: Session = Depends(_get_db),
 ):
     try:
         site = _get_site_by_domain(db, domain)
         if not site:
-            raise HTTPException(status_code=404, detail=f"Site not found for domain '{domain}'")
+            raise HTTPException(
+                status_code=404, detail=f"Site not found for domain '{domain}'"
+            )
 
         rows = (
             db.query(ContentItem)
@@ -559,16 +672,22 @@ def preview_clusters(
         if not rows or not normed:
             raise HTTPException(
                 status_code=400,
-                detail=("No valid embeddings found for this domain. Ensure 'embedding' contains numeric arrays."),
+                detail=(
+                    "No valid embeddings found for this domain. Ensure 'embedding' contains numeric arrays."
+                ),
             )
 
         assigns = _kmeans(normed, k=k, seed=seed)
         k_eff = (max(assigns) + 1) if assigns else 0
         if k_eff == 0:
-            raise HTTPException(status_code=400, detail="Clustering produced zero clusters (no data)")
+            raise HTTPException(
+                status_code=400, detail="Clustering produced zero clusters (no data)"
+            )
         dim = len(normed[0]) if normed else 0
 
-        buckets: Dict[int, List[Tuple[float, ContentItem]]] = {i: [] for i in range(k_eff)}
+        buckets: Dict[int, List[Tuple[float, ContentItem]]] = {
+            i: [] for i in range(k_eff)
+        }
         counts = [0] * k_eff
         for a in assigns:
             counts[a] += 1
@@ -605,27 +724,57 @@ def preview_clusters(
         if _debug_enabled():
             tb = "\n".join(traceback.format_exception_only(type(e), e)).strip()
             tb_tail = "\n".join(traceback.format_exc().splitlines()[-6:])
-            raise HTTPException(status_code=500, detail=f"preview_clusters error: {tb}\n{tb_tail}")
-        raise HTTPException(status_code=500, detail="Internal error while generating preview. Enable APP_DEBUG=1 for details.")
+            raise HTTPException(
+                status_code=500, detail=f"preview_clusters error: {tb}\n{tb_tail}"
+            )
+        raise HTTPException(
+            status_code=500,
+            detail="Internal error while generating preview. Enable APP_DEBUG=1 for details.",
+        )
 
 
 #
+
 
 #
 # Cluster topics / labels endpoint
 @router.get("/topics", response_model=TopicsResponse)
 def clusters_topics(
-    domain: str = Query(..., description="Site domain to cluster (e.g. strategicaileader.com)"),
+    domain: str = Query(
+        ..., description="Site domain to cluster (e.g. strategicaileader.com)"
+    ),
     k: int = Query(8, ge=1, le=50, description="Number of clusters"),
     top_n: int = Query(6, ge=1, le=20, description="Top label terms per cluster"),
-    samples_per_cluster: int = Query(5, ge=1, le=20, description="Nearest titles to centroid to display"),
-    min_df: int = Query(2, ge=1, le=50, description="Ignore terms that occur in fewer than this many docs per cluster"),
-    max_df_ratio: float = Query(0.8, ge=0.1, le=1.0, description="Ignore terms that occur in more than this fraction of docs"),
+    samples_per_cluster: int = Query(
+        5, ge=1, le=20, description="Nearest titles to centroid to display"
+    ),
+    min_df: int = Query(
+        2,
+        ge=1,
+        le=50,
+        description="Ignore terms that occur in fewer than this many docs per cluster",
+    ),
+    max_df_ratio: float = Query(
+        0.8,
+        ge=0.1,
+        le=1.0,
+        description="Ignore terms that occur in more than this fraction of docs",
+    ),
     ngram_max: int = Query(2, ge=1, le=3, description="Use up to this n-gram length"),
-    stopwords_extra: Optional[str] = Query(None, description="Comma/space separated extra stopwords to ignore (e.g. 'ai, seo, saas')"),
-    dedupe_substrings: bool = Query(True, description="If true, remove labels that are substrings/superstrings of higher-ranked labels"),
-    max_items: int = Query(1200, ge=10, le=5000, description="Max items to load (memory guard)"),
-    seed: int = Query(42, description="Random seed for KMeans initialization (default 42)"),
+    stopwords_extra: Optional[str] = Query(
+        None,
+        description="Comma/space separated extra stopwords to ignore (e.g. 'ai, seo, saas')",
+    ),
+    dedupe_substrings: bool = Query(
+        True,
+        description="If true, remove labels that are substrings/superstrings of higher-ranked labels",
+    ),
+    max_items: int = Query(
+        1200, ge=10, le=5000, description="Max items to load (memory guard)"
+    ),
+    seed: int = Query(
+        42, description="Random seed for KMeans initialization (default 42)"
+    ),
     db: Session = Depends(_get_db),
 ):
     """
@@ -634,7 +783,9 @@ def clusters_topics(
     try:
         site = _get_site_by_domain(db, domain)
         if not site:
-            raise HTTPException(status_code=404, detail=f"Site not found for domain '{domain}'")
+            raise HTTPException(
+                status_code=404, detail=f"Site not found for domain '{domain}'"
+            )
 
         rows = (
             db.query(ContentItem)
@@ -645,12 +796,16 @@ def clusters_topics(
         )
         rows, normed = _rows_and_vectors(rows)
         if not rows or not normed:
-            raise HTTPException(status_code=400, detail="No valid embeddings found for this domain.")
+            raise HTTPException(
+                status_code=400, detail="No valid embeddings found for this domain."
+            )
 
         assigns = _kmeans(normed, k=k, seed=seed)
         k_eff = (max(assigns) + 1) if assigns else 0
         if k_eff == 0:
-            raise HTTPException(status_code=400, detail="Clustering produced zero clusters (no data)")
+            raise HTTPException(
+                status_code=400, detail="Clustering produced zero clusters (no data)"
+            )
         dim = len(normed[0]) if normed else 0
         cent = _centroids(assigns, normed, k_eff)
 
@@ -662,7 +817,7 @@ def clusters_topics(
         cluster_sizes: Dict[int, int] = {i: 0 for i in range(k_eff)}
         for a, row in zip(assigns, rows):
             # Use title + meta_description for labeling; fall back to URL
-            text = (row.title or "")
+            text = row.title or ""
             md = getattr(row, "meta_description", None) or ""
             if md:
                 text = f"{text} {md}".strip()
@@ -683,7 +838,9 @@ def clusters_topics(
                 stopwords=sw,
                 dedupe_substrings=dedupe_substrings,
             )
-            samples = _nearest_to_centroid(rows, normed, assigns, cent, cid, take=samples_per_cluster)
+            samples = _nearest_to_centroid(
+                rows, normed, assigns, cent, cid, take=samples_per_cluster
+            )
             clusters_out.append(
                 ClusterTopic(
                     cluster_id=cid,
@@ -709,8 +866,13 @@ def clusters_topics(
         if _debug_enabled():
             tb = "\n".join(traceback.format_exception_only(type(e), e)).strip()
             tb_tail = "\n".join(traceback.format_exc().splitlines()[-6:])
-            raise HTTPException(status_code=500, detail=f"clusters_topics error: {tb}\n{tb_tail}")
-        raise HTTPException(status_code=500, detail="Internal error while generating cluster topics. Enable APP_DEBUG=1 for details.")
+            raise HTTPException(
+                status_code=500, detail=f"clusters_topics error: {tb}\n{tb_tail}"
+            )
+        raise HTTPException(
+            status_code=500,
+            detail="Internal error while generating cluster topics. Enable APP_DEBUG=1 for details.",
+        )
 
 
 # Suggest internal links between similar content items
@@ -718,16 +880,28 @@ def clusters_topics(
 def internal_link_suggestions(
     domain: str = Query(..., description="Site domain (e.g. strategicaileader.com)"),
     per_item: int = Query(3, ge=1, le=10, description="Max suggestions per source"),
-    min_sim: float = Query(0.45, ge=0.0, le=1.0, description="Cosine similarity threshold"),
-    max_items: int = Query(1000, ge=2, le=5000, description="Max items to load for similarity graph"),
-    fallback_when_empty: bool = Query(False, description="If no neighbors meet min_sim, still return the top per_item by similarity"),
-    exclude_regex: Optional[str] = Query(None, description="Regex to exclude source/target URL paths (e.g. '^/tag/|/category/')"),
+    min_sim: float = Query(
+        0.45, ge=0.0, le=1.0, description="Cosine similarity threshold"
+    ),
+    max_items: int = Query(
+        1000, ge=2, le=5000, description="Max items to load for similarity graph"
+    ),
+    fallback_when_empty: bool = Query(
+        False,
+        description="If no neighbors meet min_sim, still return the top per_item by similarity",
+    ),
+    exclude_regex: Optional[str] = Query(
+        None,
+        description="Regex to exclude source/target URL paths (e.g. '^/tag/|/category/')",
+    ),
     db: Session = Depends(_get_db),
 ):
     try:
         site = _get_site_by_domain(db, domain)
         if not site:
-            raise HTTPException(status_code=404, detail=f"Site not found for domain '{domain}'")
+            raise HTTPException(
+                status_code=404, detail=f"Site not found for domain '{domain}'"
+            )
 
         rows = (
             db.query(ContentItem)
@@ -738,7 +912,10 @@ def internal_link_suggestions(
         )
         rows, vecs = _rows_and_vectors(rows)
         if len(rows) < 2 or not vecs:
-            raise HTTPException(status_code=400, detail="Need at least 2 items with valid embeddings to suggest links.")
+            raise HTTPException(
+                status_code=400,
+                detail="Need at least 2 items with valid embeddings to suggest links.",
+            )
 
         # Optional path exclusion regex
         exclude_pat = None
@@ -763,7 +940,9 @@ def internal_link_suggestions(
                     continue
                 if _is_homepage(rows[j].url):
                     continue
-                if exclude_pat and (exclude_pat.search(src_path) or exclude_pat.search(tgt_path)):
+                if exclude_pat and (
+                    exclude_pat.search(src_path) or exclude_pat.search(tgt_path)
+                ):
                     continue
                 s = _cosine(vecs[i], vecs[j])
                 sims.append((s, j))
@@ -795,8 +974,14 @@ def internal_link_suggestions(
         if _debug_enabled():
             tb = "\n".join(traceback.format_exception_only(type(e), e)).strip()
             tb_tail = "\n".join(traceback.format_exc().splitlines()[-6:])
-            raise HTTPException(status_code=500, detail=f"internal_link_suggestions error: {tb}\n{tb_tail}")
-        raise HTTPException(status_code=500, detail="Internal error while generating link suggestions. Enable APP_DEBUG=1 for details.")
+            raise HTTPException(
+                status_code=500,
+                detail=f"internal_link_suggestions error: {tb}\n{tb_tail}",
+            )
+        raise HTTPException(
+            status_code=500,
+            detail="Internal error while generating link suggestions. Enable APP_DEBUG=1 for details.",
+        )
 
 
 #
@@ -810,7 +995,9 @@ def commit_clusters(payload: CommitRequest, db: Session = Depends(_get_db)):
     try:
         site = _get_site_by_domain(db, payload.domain)
         if not site:
-            raise HTTPException(status_code=404, detail=f"Site not found for domain '{payload.domain}'")
+            raise HTTPException(
+                status_code=404, detail=f"Site not found for domain '{payload.domain}'"
+            )
 
         rows = (
             db.query(ContentItem)
@@ -821,12 +1008,16 @@ def commit_clusters(payload: CommitRequest, db: Session = Depends(_get_db)):
         )
         rows, normed = _rows_and_vectors(rows)
         if not rows or not normed:
-            raise HTTPException(status_code=400, detail="No valid embeddings found; cannot commit clusters.")
+            raise HTTPException(
+                status_code=400,
+                detail="No valid embeddings found; cannot commit clusters.",
+            )
 
         assigns = _kmeans(normed, k=payload.k, seed=payload.seed)
 
         # Ensure the DB has a 'cluster_id' column before attempting to write
         from sqlalchemy import inspect as _sa_inspect
+
         try:
             inspector = _sa_inspect(db.get_bind())
             cols = {c["name"] for c in inspector.get_columns("content_items")}
@@ -842,7 +1033,9 @@ def commit_clusters(payload: CommitRequest, db: Session = Depends(_get_db)):
             raise
         except Exception as e:  # pragma: no cover - very unlikely
             if _debug_enabled():
-                raise HTTPException(status_code=500, detail=f"Schema inspection failed: {e}")
+                raise HTTPException(
+                    status_code=500, detail=f"Schema inspection failed: {e}"
+                )
             raise HTTPException(
                 status_code=500,
                 detail="Could not verify schema for 'content_items'. Ensure 'cluster_id' column exists.",
@@ -868,12 +1061,20 @@ def commit_clusters(payload: CommitRequest, db: Session = Depends(_get_db)):
                 db.rollback()
                 if _debug_enabled():
                     raise HTTPException(status_code=500, detail=f"Commit failed: {e}")
-                raise HTTPException(status_code=500, detail="Failed to commit cluster assignments to the database.")
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to commit cluster assignments to the database.",
+                )
         else:
             # Nothing changed; still ensure session is clean
             db.flush()
 
-        return CommitResponse(domain=payload.domain, k=payload.k, updated=updated, total_with_embeddings=len(rows))
+        return CommitResponse(
+            domain=payload.domain,
+            k=payload.k,
+            updated=updated,
+            total_with_embeddings=len(rows),
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -881,8 +1082,13 @@ def commit_clusters(payload: CommitRequest, db: Session = Depends(_get_db)):
         if _debug_enabled():
             tb = "\n".join(traceback.format_exception_only(type(e), e)).strip()
             tb_tail = "\n".join(traceback.format_exc().splitlines()[-6:])
-            raise HTTPException(status_code=500, detail=f"commit_clusters error: {tb}\n{tb_tail}")
-        raise HTTPException(status_code=500, detail="Internal error while committing clusters. Enable APP_DEBUG=1 for details.")
+            raise HTTPException(
+                status_code=500, detail=f"commit_clusters error: {tb}\n{tb_tail}"
+            )
+        raise HTTPException(
+            status_code=500,
+            detail="Internal error while committing clusters. Enable APP_DEBUG=1 for details.",
+        )
 
 
 #
@@ -895,7 +1101,9 @@ def clear_clusters(payload: ClearRequest, db: Session = Depends(_get_db)):
     """
     site = _get_site_by_domain(db, payload.domain)
     if not site:
-        raise HTTPException(status_code=404, detail=f"Site not found for domain '{payload.domain}'")
+        raise HTTPException(
+            status_code=404, detail=f"Site not found for domain '{payload.domain}'"
+        )
 
     rows = (
         db.query(ContentItem)

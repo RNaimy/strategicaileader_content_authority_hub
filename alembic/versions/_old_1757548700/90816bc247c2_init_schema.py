@@ -1,10 +1,11 @@
 """init schema
 
 Revision ID: 90816bc247c2
-Revises: 
+Revises:
 Create Date: 2025-08-19 17:17:03.132148
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -24,10 +25,17 @@ def upgrade() -> None:
     op.create_table(
         "clusters",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("code", sa.String(length=32), nullable=False, unique=True, index=True),
+        sa.Column(
+            "code", sa.String(length=32), nullable=False, unique=True, index=True
+        ),
         sa.Column("name", sa.String(length=255), nullable=False, unique=True),
         sa.Column("description", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+            nullable=False,
+        ),
         sa.Column("updated_at", sa.DateTime(), nullable=True),
     )
 
@@ -35,7 +43,9 @@ def upgrade() -> None:
     op.create_table(
         "content_items",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("slug", sa.String(length=255), nullable=False, unique=True, index=True),
+        sa.Column(
+            "slug", sa.String(length=255), nullable=False, unique=True, index=True
+        ),
         sa.Column("title", sa.String(length=512), nullable=False),
         sa.Column("url", sa.String(length=1024), nullable=True, unique=True),
         sa.Column("publish_date", sa.DateTime(), nullable=True),
@@ -44,8 +54,15 @@ def upgrade() -> None:
         sa.Column("status", sa.String(length=64), nullable=True),
         sa.Column("primary_keyword", sa.String(length=255), nullable=True),
         sa.Column("secondary_keywords", sa.Text(), nullable=True),
-        sa.Column("topic_authority_score", sa.Float(), nullable=False, server_default="0"),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
+        sa.Column(
+            "topic_authority_score", sa.Float(), nullable=False, server_default="0"
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+            nullable=False,
+        ),
         sa.Column("updated_at", sa.DateTime(), nullable=True),
     )
 
@@ -54,7 +71,9 @@ def upgrade() -> None:
         "content_item_clusters",
         sa.Column("content_id", sa.Integer(), nullable=False),
         sa.Column("cluster_id", sa.Integer(), nullable=False),
-        sa.ForeignKeyConstraint(["content_id"], ["content_items.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["content_id"], ["content_items.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["cluster_id"], ["clusters.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("content_id", "cluster_id"),
     )
@@ -63,8 +82,15 @@ def upgrade() -> None:
     op.create_table(
         "keywords",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("keyword", sa.String(length=255), nullable=False, unique=True, index=True),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
+        sa.Column(
+            "keyword", sa.String(length=255), nullable=False, unique=True, index=True
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+            nullable=False,
+        ),
     )
 
     # association: content_items <-> keywords (many-to-many) with weight
@@ -73,7 +99,9 @@ def upgrade() -> None:
         sa.Column("content_id", sa.Integer(), nullable=False),
         sa.Column("keyword_id", sa.Integer(), nullable=False),
         sa.Column("weight", sa.Float(), nullable=False, server_default="1"),
-        sa.ForeignKeyConstraint(["content_id"], ["content_items.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["content_id"], ["content_items.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["keyword_id"], ["keywords.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("content_id", "keyword_id"),
     )
@@ -84,8 +112,12 @@ def upgrade() -> None:
         sa.Column("source_id", sa.Integer(), nullable=False),
         sa.Column("target_id", sa.Integer(), nullable=False),
         sa.Column("anchor_text", sa.String(length=255), nullable=True),
-        sa.ForeignKeyConstraint(["source_id"], ["content_items.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["target_id"], ["content_items.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["source_id"], ["content_items.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["target_id"], ["content_items.id"], ondelete="CASCADE"
+        ),
         sa.PrimaryKeyConstraint("source_id", "target_id"),
     )
 
@@ -99,15 +131,25 @@ def upgrade() -> None:
         sa.Column("impressions", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("ctr", sa.Float(), nullable=True),
         sa.Column("position", sa.Float(), nullable=True),
-        sa.ForeignKeyConstraint(["content_id"], ["content_items.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["content_id"], ["content_items.id"], ondelete="CASCADE"
+        ),
         sa.UniqueConstraint("content_id", "date", name="uq_gsc_content_date"),
     )
 
     # helpful indexes (SQLite-safe)
-    op.execute("CREATE INDEX IF NOT EXISTS ix_content_items_publish_date ON content_items (publish_date)")
-    op.execute("CREATE INDEX IF NOT EXISTS ix_content_items_category ON content_items (category)")
-    op.execute("CREATE INDEX IF NOT EXISTS ix_internal_links_source ON internal_links (source_id)")
-    op.execute("CREATE INDEX IF NOT EXISTS ix_internal_links_target ON internal_links (target_id)")
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_content_items_publish_date ON content_items (publish_date)"
+    )
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_content_items_category ON content_items (category)"
+    )
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_internal_links_source ON internal_links (source_id)"
+    )
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_internal_links_target ON internal_links (target_id)"
+    )
 
 
 def downgrade() -> None:

@@ -30,6 +30,7 @@ router = APIRouter(prefix="/analytics", tags=["analytics"])
 # Pydantic Schemas
 # ---------------------------
 
+
 class HealthResponse(BaseModel):
     ok: bool = True
     module: str = "analytics"
@@ -88,7 +89,10 @@ class IngestResponse(BaseModel):
 class LatestResponse(BaseModel):
     site_id: int
     domain: str | None = None
-    latest: Dict[str, SnapshotOut]  # keyed by source, e.g., {"gsc": SnapshotOut, "ga4": SnapshotOut}
+    latest: Dict[
+        str, SnapshotOut
+    ]  # keyed by source, e.g., {"gsc": SnapshotOut, "ga4": SnapshotOut}
+
 
 class SummaryResponse(BaseModel):
     site_id: int
@@ -103,20 +107,33 @@ class SummaryResponse(BaseModel):
 # Helpers
 # ---------------------------
 
+
 def _bool_env(name: str) -> bool:
     v = os.getenv(name)
     return bool(v and v.strip())
 
+
 def _env_has_ga4() -> bool:
-    return _bool_env("GA4_CLIENT_ID") and _bool_env("GA4_CLIENT_SECRET") and _bool_env("GA4_REFRESH_TOKEN")
+    return (
+        _bool_env("GA4_CLIENT_ID")
+        and _bool_env("GA4_CLIENT_SECRET")
+        and _bool_env("GA4_REFRESH_TOKEN")
+    )
+
 
 def _env_has_gsc() -> bool:
-    return _bool_env("GSC_CLIENT_ID") and _bool_env("GSC_CLIENT_SECRET") and _bool_env("GSC_REFRESH_TOKEN")
+    return (
+        _bool_env("GSC_CLIENT_ID")
+        and _bool_env("GSC_CLIENT_SECRET")
+        and _bool_env("GSC_REFRESH_TOKEN")
+    )
 
 
 def _resolve_site_id(db: Session, site_id: Optional[int], domain: Optional[str]) -> int:
     if site_id:
-        exists = db.scalar(select(func.count()).select_from(Site).where(Site.id == site_id))
+        exists = db.scalar(
+            select(func.count()).select_from(Site).where(Site.id == site_id)
+        )
         if not exists:
             raise HTTPException(status_code=404, detail=f"site_id {site_id} not found")
         return site_id
@@ -128,7 +145,9 @@ def _resolve_site_id(db: Session, site_id: Optional[int], domain: Optional[str])
     raise HTTPException(status_code=400, detail="Provide either site_id or domain")
 
 
-def _default_dates(start_date: Optional[datetime], end_date: Optional[datetime]) -> tuple[datetime, datetime]:
+def _default_dates(
+    start_date: Optional[datetime], end_date: Optional[datetime]
+) -> tuple[datetime, datetime]:
     if end_date is None:
         end_date = datetime.utcnow()
     if start_date is None:
@@ -180,17 +199,18 @@ def config_status():
     return {
         "ga4": {
             "creds": _env_has_ga4(),
-            "property_id": os.getenv("GA4_PROPERTY_ID") or os.getenv("GA4_PROPERTY_ID_STRATEGICAI") or os.getenv("GA4_PROPERTY_ID_LIASFLOWERS")
+            "property_id": os.getenv("GA4_PROPERTY_ID")
+            or os.getenv("GA4_PROPERTY_ID_STRATEGICAI")
+            or os.getenv("GA4_PROPERTY_ID_LIASFLOWERS"),
         },
-        "gsc": {
-            "creds": _env_has_gsc()
-        }
+        "gsc": {"creds": _env_has_gsc()},
     }
 
 
 # ---------------------------
 # Routes
 # ---------------------------
+
 
 @router.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
@@ -201,7 +221,9 @@ def health() -> HealthResponse:
 def list_snapshots(
     domain: Optional[str] = Query(None, description="Filter by site domain"),
     site_id: Optional[int] = Query(None, description="Filter by site id"),
-    source: Optional[str] = Query(None, description="Filter by source, e.g., 'gsc' or 'ga4'"),
+    source: Optional[str] = Query(
+        None, description="Filter by source, e.g., 'gsc' or 'ga4'"
+    ),
     limit: int = Query(50, ge=1, le=1000),
     db: Session = Depends(get_session),
 ):
@@ -227,7 +249,9 @@ def latest_snapshots(
         raise HTTPException(status_code=400, detail="Provide domain or site_id")
     sid = _resolve_site_id(db, site_id, domain)
     latest_map = _latest_by_source(db, sid)
-    latest_out: Dict[str, SnapshotOut] = {src: _snapshot_to_out(snap) for src, snap in latest_map.items()}
+    latest_out: Dict[str, SnapshotOut] = {
+        src: _snapshot_to_out(snap) for src, snap in latest_map.items()
+    }
     dom = None
     if domain:
         dom = domain
@@ -248,9 +272,14 @@ def summary(
         raise HTTPException(status_code=400, detail="Provide domain or site_id")
     sid = _resolve_site_id(db, site_id, domain)
 
-    total = db.scalar(
-        select(func.count()).select_from(AnalyticsSnapshot).where(AnalyticsSnapshot.site_id == sid)
-    ) or 0
+    total = (
+        db.scalar(
+            select(func.count())
+            .select_from(AnalyticsSnapshot)
+            .where(AnalyticsSnapshot.site_id == sid)
+        )
+        or 0
+    )
 
     latest_map = _latest_by_source(db, sid)
     sources_present = sorted(latest_map.keys())
@@ -258,7 +287,9 @@ def summary(
     if latest_map:
         last_captured_at = max(s.captured_at for s in latest_map.values())
 
-    latest_out: Dict[str, SnapshotOut] = {src: _snapshot_to_out(snap) for src, snap in latest_map.items()}
+    latest_out: Dict[str, SnapshotOut] = {
+        src: _snapshot_to_out(snap) for src, snap in latest_map.items()
+    }
     dom = None
     if domain:
         dom = domain
@@ -290,7 +321,10 @@ def ingest_gsc(payload: IngestBase, db: Session = Depends(get_session)):
     # Live path
     if payload.live:
         if GSCClient is None or not _env_has_gsc():
-            raise HTTPException(status_code=400, detail="GSC live mode requested but credentials/client not available")
+            raise HTTPException(
+                status_code=400,
+                detail="GSC live mode requested but credentials/client not available",
+            )
         # Determine site URL
         site_url = payload.gsc_site_url
         if not site_url:
@@ -298,12 +332,19 @@ def ingest_gsc(payload: IngestBase, db: Session = Depends(get_session)):
             if payload.domain:
                 site_url = f"https://{payload.domain}/"
         if not site_url:
-            raise HTTPException(status_code=400, detail="GSC live mode requires gsc_site_url or domain")
+            raise HTTPException(
+                status_code=400, detail="GSC live mode requires gsc_site_url or domain"
+            )
         try:
             client = None
 
             # Prefer explicit OAuth refresh-token flow when present
-            if os.getenv("GSC_REFRESH_TOKEN") and os.getenv("GSC_CLIENT_ID") and os.getenv("GSC_CLIENT_SECRET") and hasattr(GSCClient, "from_oauth_refresh_token"):
+            if (
+                os.getenv("GSC_REFRESH_TOKEN")
+                and os.getenv("GSC_CLIENT_ID")
+                and os.getenv("GSC_CLIENT_SECRET")
+                and hasattr(GSCClient, "from_oauth_refresh_token")
+            ):
                 client = GSCClient.from_oauth_refresh_token(
                     client_id=os.getenv("GSC_CLIENT_ID"),
                     client_secret=os.getenv("GSC_CLIENT_SECRET"),
@@ -312,7 +353,11 @@ def ingest_gsc(payload: IngestBase, db: Session = Depends(get_session)):
                 )
 
             # Else try service account if configured
-            if client is None and os.getenv("GOOGLE_APPLICATION_CREDENTIALS") and hasattr(GSCClient, "from_service_account"):
+            if (
+                client is None
+                and os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+                and hasattr(GSCClient, "from_service_account")
+            ):
                 client = GSCClient.from_service_account(
                     keyfile=os.getenv("GOOGLE_APPLICATION_CREDENTIALS"),
                     site_url=site_url,
@@ -322,7 +367,9 @@ def ingest_gsc(payload: IngestBase, db: Session = Depends(get_session)):
             if client is None:
                 client = GSCClient.from_env(site_url=site_url)  # type: ignore[attr-defined]
 
-            metrics = client.fetch_summary(start, end)  # expected keys: clicks, impressions, ctr, position, pages_indexed
+            metrics = client.fetch_summary(
+                start, end
+            )  # expected keys: clicks, impressions, ctr, position, pages_indexed
             snap = AnalyticsSnapshot(
                 site_id=sid,
                 source="gsc",
@@ -332,7 +379,8 @@ def ingest_gsc(payload: IngestBase, db: Session = Depends(get_session)):
                 clicks=metrics.get("clicks"),
                 impressions=metrics.get("impressions"),
                 ctr=metrics.get("ctr"),
-                average_position=metrics.get("position") or metrics.get("average_position"),
+                average_position=metrics.get("position")
+                or metrics.get("average_position"),
                 pages_indexed=metrics.get("pages_indexed"),
                 indexed_pct=metrics.get("indexed_pct"),
                 notes={**(payload.notes or {}), "live": True, "via": "gsc_client"},
@@ -340,7 +388,13 @@ def ingest_gsc(payload: IngestBase, db: Session = Depends(get_session)):
             db.add(snap)
             db.commit()
             db.refresh(snap)
-            return IngestResponse(ok=True, source="gsc", site_id=sid, inserted=1, captured_at=snap.captured_at)
+            return IngestResponse(
+                ok=True,
+                source="gsc",
+                site_id=sid,
+                inserted=1,
+                captured_at=snap.captured_at,
+            )
         except HTTPException:
             raise
         except Exception as e:
@@ -370,7 +424,9 @@ def ingest_gsc(payload: IngestBase, db: Session = Depends(get_session)):
     db.add(snap)
     db.commit()
     db.refresh(snap)
-    return IngestResponse(ok=True, source="gsc", site_id=sid, inserted=1, captured_at=snap.captured_at)
+    return IngestResponse(
+        ok=True, source="gsc", site_id=sid, inserted=1, captured_at=snap.captured_at
+    )
 
 
 @router.post("/ingest/ga4", response_model=IngestResponse)
@@ -387,14 +443,27 @@ def ingest_ga4(payload: IngestBase, db: Session = Depends(get_session)):
     # Live path
     if payload.live:
         if GA4Client is None or not _env_has_ga4():
-            raise HTTPException(status_code=400, detail="GA4 live mode requested but credentials/client not available")
+            raise HTTPException(
+                status_code=400,
+                detail="GA4 live mode requested but credentials/client not available",
+            )
         # Determine property id
-        prop_id = payload.ga4_property_id or os.getenv("GA4_PROPERTY_ID") or os.getenv("GA4_PROPERTY_ID_STRATEGICAI") or os.getenv("GA4_PROPERTY_ID_LIASFLOWERS")
+        prop_id = (
+            payload.ga4_property_id
+            or os.getenv("GA4_PROPERTY_ID")
+            or os.getenv("GA4_PROPERTY_ID_STRATEGICAI")
+            or os.getenv("GA4_PROPERTY_ID_LIASFLOWERS")
+        )
         if not prop_id:
-            raise HTTPException(status_code=400, detail="GA4 property id missing; send ga4_property_id or set GA4_PROPERTY_ID* in env")
+            raise HTTPException(
+                status_code=400,
+                detail="GA4 property id missing; send ga4_property_id or set GA4_PROPERTY_ID* in env",
+            )
         try:
             client = GA4Client.from_env(property_id=prop_id)  # type: ignore[attr-defined]
-            metrics = client.fetch_summary(start, end)  # expected keys: sessions, conversions, revenue
+            metrics = client.fetch_summary(
+                start, end
+            )  # expected keys: sessions, conversions, revenue
             snap = AnalyticsSnapshot(
                 site_id=sid,
                 source="ga4",
@@ -409,7 +478,13 @@ def ingest_ga4(payload: IngestBase, db: Session = Depends(get_session)):
             db.add(snap)
             db.commit()
             db.refresh(snap)
-            return IngestResponse(ok=True, source="ga4", site_id=sid, inserted=1, captured_at=snap.captured_at)
+            return IngestResponse(
+                ok=True,
+                source="ga4",
+                site_id=sid,
+                inserted=1,
+                captured_at=snap.captured_at,
+            )
         except HTTPException:
             raise
         except Exception as e:  # fallback to stub on error
@@ -439,4 +514,6 @@ def ingest_ga4(payload: IngestBase, db: Session = Depends(get_session)):
     db.add(snap)
     db.commit()
     db.refresh(snap)
-    return IngestResponse(ok=True, source="ga4", site_id=sid, inserted=1, captured_at=snap.captured_at)
+    return IngestResponse(
+        ok=True, source="ga4", site_id=sid, inserted=1, captured_at=snap.captured_at
+    )

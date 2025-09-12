@@ -1,5 +1,3 @@
-
-
 import os
 import json
 import pytest
@@ -73,9 +71,24 @@ def test_upsert_and_query_round_trip():
     payload = {
         "site_id": None,
         "items": [
-            {"id": "doc-1", "url": "https://ex.com/1", "title": "Doc 1", "text": "apples and oranges"},
-            {"id": "doc-2", "url": "https://ex.com/2", "title": "Doc 2", "text": "bananas are yellow"},
-            {"id": "doc-3", "url": "https://ex.com/3", "title": "Doc 3", "text": "grapes grow in clusters"},
+            {
+                "id": "doc-1",
+                "url": "https://ex.com/1",
+                "title": "Doc 1",
+                "text": "apples and oranges",
+            },
+            {
+                "id": "doc-2",
+                "url": "https://ex.com/2",
+                "title": "Doc 2",
+                "text": "bananas are yellow",
+            },
+            {
+                "id": "doc-3",
+                "url": "https://ex.com/3",
+                "title": "Doc 3",
+                "text": "grapes grow in clusters",
+            },
         ],
     }
     r = client.post(upsert_path, json=payload)

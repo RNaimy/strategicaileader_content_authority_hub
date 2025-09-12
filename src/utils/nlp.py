@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 Lightweight NLP helpers used for keyword scoring and clustering.
 These are intentionally dependency-free for fast unit testing.
@@ -15,7 +16,7 @@ def keyword_frequency(text: str, keywords: List[str]) -> Dict[str, int]:
     text = text or ""
     lower = text.lower()
     out: Dict[str, int] = {}
-    for k in (keywords or []):
+    for k in keywords or []:
         key = (k or "").lower()
         out[key] = lower.count(key) if key else 0
     return out
@@ -32,7 +33,8 @@ def contains_all_keywords(text: str, keywords: List[str]) -> bool:
     the condition is considered satisfied.
     """
     normalized = [
-        k for k in (keywords or [])
+        k
+        for k in (keywords or [])
         if k not in essentially_empty_tokens and (k or "").strip()
     ]
     if not normalized:
@@ -41,10 +43,12 @@ def contains_all_keywords(text: str, keywords: List[str]) -> bool:
     return all(freq[(k or "").lower()] > 0 for k in normalized)
 
 
-def top_keywords(text: str, keywords: List[str], top_n: int = 10) -> List[Tuple[str, int]]:
+def top_keywords(
+    text: str, keywords: List[str], top_n: int = 10
+) -> List[Tuple[str, int]]:
     """Return the top N ``(keyword, count)`` pairs by frequency, descending.
 
     Ties keep input order.
     """
     counts = keyword_frequency(text, keywords)
-    return sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[: top_n]
+    return sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:top_n]

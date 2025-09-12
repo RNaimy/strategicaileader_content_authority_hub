@@ -13,9 +13,11 @@ from src.db.models import Site
 
 DOMAIN = "strategicaileader.com"
 
+
 @pytest.fixture(scope="module")
 def client():
     return TestClient(app)
+
 
 @pytest.fixture(scope="module")
 def db():
@@ -67,7 +69,9 @@ def test_ingest_and_fetch_snapshots(client, db):
     assert j1["ok"] is True and j1["source"] == "gsc" and j1["site_id"] == site_id
 
     # Ingest stub GA4 snapshot by site_id and notes
-    r2 = client.post("/analytics/ingest/ga4", json={"site_id": site_id, "notes": {"run": "pytest"}})
+    r2 = client.post(
+        "/analytics/ingest/ga4", json={"site_id": site_id, "notes": {"run": "pytest"}}
+    )
     assert r2.status_code == 200
     j2 = r2.json()
     assert j2["ok"] is True and j2["source"] == "ga4" and j2["site_id"] == site_id
@@ -130,12 +134,19 @@ def test_ingest_ga4_live_uses_client(monkeypatch, client, db):
         return StubGA4()
 
     # Monkeypatch the factory classmethod
-    monkeypatch.setattr(GA4Client, "from_oauth_refresh_token", staticmethod(_stub_from_token))
+    monkeypatch.setattr(
+        GA4Client, "from_oauth_refresh_token", staticmethod(_stub_from_token)
+    )
 
     # Call live endpoint
     resp = client.post(
         "/analytics/ingest/ga4",
-        json={"domain": DOMAIN, "live": True, "ga4_property_id": "354557242", "notes": {"via": "unit"}},
+        json={
+            "domain": DOMAIN,
+            "live": True,
+            "ga4_property_id": "354557242",
+            "notes": {"via": "unit"},
+        },
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -175,12 +186,19 @@ def test_ingest_gsc_live_uses_client(monkeypatch, client, db):
         return StubGSC()
 
     # Monkeypatch the factory classmethod
-    monkeypatch.setattr(GSCClient, "from_oauth_refresh_token", staticmethod(_stub_from_token))
+    monkeypatch.setattr(
+        GSCClient, "from_oauth_refresh_token", staticmethod(_stub_from_token)
+    )
 
     # Call live endpoint
     resp = client.post(
         "/analytics/ingest/gsc",
-        json={"domain": DOMAIN, "live": True, "gsc_site_url": "https://www.strategicaileader.com/", "notes": {"via": "unit"}},
+        json={
+            "domain": DOMAIN,
+            "live": True,
+            "gsc_site_url": "https://www.strategicaileader.com/",
+            "notes": {"via": "unit"},
+        },
     )
     assert resp.status_code == 200
     body = resp.json()

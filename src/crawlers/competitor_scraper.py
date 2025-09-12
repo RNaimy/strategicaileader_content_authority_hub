@@ -42,7 +42,7 @@ UA = "ContentAuthorityHubBot/0.1 (+https://github.com/RNaimy/strategicaileader_c
 
 # Politeness & safety
 MIN_BASE_DELAY = 0.5  # seconds between requests when robots.txt has no crawl-delay
-JITTER_MAX = 0.75     # add up to this many seconds of random jitter to each wait
+JITTER_MAX = 0.75  # add up to this many seconds of random jitter to each wait
 MAX_HTML_BYTES = 2_500_000  # skip very large responses
 
 # Caches for politeness
@@ -51,6 +51,7 @@ _LAST_REQUEST_AT: dict[str, float] = {}
 # -----------------------------
 # Data structures
 # -----------------------------
+
 
 @dataclass
 class ScrapeResult:
@@ -62,15 +63,19 @@ class ScrapeResult:
     fetched_at: str = dt.datetime.utcnow().isoformat()
     source: str = "competitor"
 
+
 # -----------------------------
 # Helpers
 # -----------------------------
 
+
 def _normalize_whitespace(s: str) -> str:
     return re.sub(r"\s+", " ", s or "").strip()
 
+
 def _netloc(url: str) -> str:
     return urlparse(url).netloc
+
 
 def _polite_sleep_for(netloc: str, base_delay: float = MIN_BASE_DELAY) -> None:
     """Sleep to space out per-domain requests with jitter (ignores robots.txt)."""
@@ -82,6 +87,7 @@ def _polite_sleep_for(netloc: str, base_delay: float = MIN_BASE_DELAY) -> None:
         time.sleep(wait_until - now)
     _LAST_REQUEST_AT[netloc] = time.time()
 
+
 def fetch_url(url: str, timeout: int = DEFAULT_TIMEOUT) -> Optional[requests.Response]:
     """
     GET with basic retries and a polite UA. Returns Response or None.
@@ -89,7 +95,10 @@ def fetch_url(url: str, timeout: int = DEFAULT_TIMEOUT) -> Optional[requests.Res
     # Polite spacing with jitter (robots.txt ignored)
     _polite_sleep_for(_netloc(url))
 
-    headers = {"User-Agent": UA, "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"}
+    headers = {
+        "User-Agent": UA,
+        "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
+    }
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             resp = requests.get(url, headers=headers, timeout=timeout)
@@ -97,23 +106,30 @@ def fetch_url(url: str, timeout: int = DEFAULT_TIMEOUT) -> Optional[requests.Res
             ctype = resp.headers.get("content-type", "").lower()
             if "html" not in ctype:
                 return None
-            if resp.headers.get("content-length") and int(resp.headers["content-length"]) > MAX_HTML_BYTES:
+            if (
+                resp.headers.get("content-length")
+                and int(resp.headers["content-length"]) > MAX_HTML_BYTES
+            ):
                 return None
-            if not resp.headers.get("content-length") and len(resp.content) > MAX_HTML_BYTES:
+            if (
+                not resp.headers.get("content-length")
+                and len(resp.content) > MAX_HTML_BYTES
+            ):
                 return None
             if resp.status_code >= 400:
                 # 404/410 etc. don't retry except 5xx
                 if 500 <= resp.status_code < 600 and attempt < MAX_RETRIES:
-                    time.sleep(RETRY_BACKOFF ** attempt + random.uniform(0.0, JITTER_MAX))
+                    time.sleep(RETRY_BACKOFF**attempt + random.uniform(0.0, JITTER_MAX))
                     continue
                 return None
             return resp
         except requests.RequestException:
             if attempt < MAX_RETRIES:
-                time.sleep((RETRY_BACKOFF ** attempt) + random.uniform(0.0, JITTER_MAX))
+                time.sleep((RETRY_BACKOFF**attempt) + random.uniform(0.0, JITTER_MAX))
                 continue
             return None
     return None
+
 
 def extract_content(url: str, html_text: str) -> ScrapeResult:
     soup = BeautifulSoup(html_text, "html.parser")
@@ -150,6 +166,7 @@ def extract_content(url: str, html_text: str) -> ScrapeResult:
         published_at=published_at,
     )
 
+
 def _guess_published_at(soup: BeautifulSoup) -> Optional[str]:
     """
     Best-effort: look for common meta tags or time elements.
@@ -184,6 +201,7 @@ def _guess_published_at(soup: BeautifulSoup) -> Optional[str]:
                         pass
     return None
 
+
 def iter_sitemap_urls(sitemap_url: str, limit: Optional[int] = None) -> Iterator[str]:
     """
     Pull a (flat) sitemap.xml and yield <loc> urls.
@@ -216,6 +234,7 @@ def iter_sitemap_urls(sitemap_url: str, limit: Optional[int] = None) -> Iterator
                     if limit <= 0:
                         return
 
+
 def extract_links(base_url: str, html_text: str) -> List[str]:
     """
     Extract site-internal links that look like articles (very lenient).
@@ -230,7 +249,10 @@ def extract_links(base_url: str, html_text: str) -> List[str]:
         if u.netloc != base_netloc:
             continue
         # crude filter to avoid nav/login/cart etc.
-        if any(seg in u.path.lower() for seg in ("/tag/", "/category/", "/cart", "/account", "/login", "/search")):
+        if any(
+            seg in u.path.lower()
+            for seg in ("/tag/", "/category/", "/cart", "/account", "/login", "/search")
+        ):
             continue
         links.append(abs_url)
     # dedupe while preserving order
@@ -242,9 +264,11 @@ def extract_links(base_url: str, html_text: str) -> List[str]:
             uniq.append(u)
     return uniq
 
+
 # -----------------------------
 # Public scraper
 # -----------------------------
+
 
 def scrape_from_sitemap(sitemap_url: str, limit: int = 200) -> Iterator[ScrapeResult]:
     for url in iter_sitemap_urls(sitemap_url, limit=limit):
@@ -252,6 +276,7 @@ def scrape_from_sitemap(sitemap_url: str, limit: int = 200) -> Iterator[ScrapeRe
         if not resp:
             continue
         yield extract_content(url, resp.text)
+
 
 def scrape_from_url(start_url: str, limit: int = 50) -> Iterator[ScrapeResult]:
     """
@@ -272,9 +297,11 @@ def scrape_from_url(start_url: str, limit: int = 50) -> Iterator[ScrapeResult]:
         yield extract_content(link, resp.text)
         count += 1
 
+
 # -----------------------------
 # CLI for quick experiments
 # -----------------------------
+
 
 def _cli() -> int:
     parser = argparse.ArgumentParser(description="Competitor scraper (scaffold)")
@@ -296,6 +323,7 @@ def _cli() -> int:
         for item in it:
             print(json.dumps(asdict(item), ensure_ascii=False))
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(_cli())

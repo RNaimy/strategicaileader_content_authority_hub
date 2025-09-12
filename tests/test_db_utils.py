@@ -4,6 +4,7 @@ import tempfile
 import importlib
 import types
 
+
 def _reload_db_module(tmp_url: str, extra_env: dict | None = None):
     """
     Reload utils.db after adjusting env so module-level code runs again.
@@ -29,16 +30,20 @@ def _reload_db_module(tmp_url: str, extra_env: dict | None = None):
         os.environ.clear()
         os.environ.update(old_env)
 
+
 def test_db_module_imports_and_engine_connects(tmp_path):
     # Use a throwaway sqlite file and enable optional flags many modules parse
     db_file = tmp_path / "test.db"
     url = f"sqlite:///{db_file}"
-    db = _reload_db_module(url, extra_env={
-        "SQL_ECHO": "1",
-        "DB_POOL_SIZE": "5",
-        "DB_POOL_TIMEOUT": "30",
-        "DB_MAX_OVERFLOW": "2",
-    })
+    db = _reload_db_module(
+        url,
+        extra_env={
+            "SQL_ECHO": "1",
+            "DB_POOL_SIZE": "5",
+            "DB_POOL_TIMEOUT": "30",
+            "DB_MAX_OVERFLOW": "2",
+        },
+    )
 
     # Check common exports if present, and exercise them
     # 1) engine or get_engine
@@ -68,6 +73,7 @@ def test_db_module_imports_and_engine_connects(tmp_path):
             val = s.execute(db.text("SELECT 3")).scalar_one()
             assert val == 3
 
+
 def test_sqlite_file_is_created_and_valid(tmp_path):
     db_path = tmp_path / "smoke.db"
     url = f"sqlite:///{db_path}"
@@ -76,7 +82,9 @@ def test_sqlite_file_is_created_and_valid(tmp_path):
     # Ensure file got created after first connect
     engine = getattr(db, "engine", None) or db.get_engine()
     with engine.begin() as conn:
-        conn.exec_driver_sql("CREATE TABLE IF NOT EXISTS ping (id INTEGER PRIMARY KEY, v TEXT)")
+        conn.exec_driver_sql(
+            "CREATE TABLE IF NOT EXISTS ping (id INTEGER PRIMARY KEY, v TEXT)"
+        )
         conn.exec_driver_sql("INSERT INTO ping (v) VALUES ('pong')")
 
     assert db_path.exists(), "SQLite DB file should exist"
@@ -90,6 +98,7 @@ def test_sqlite_file_is_created_and_valid(tmp_path):
     finally:
         con.close()
 
+
 def test_bad_url_fails_cleanly(monkeypatch):
     # If your module validates URLs on import, this will still pass by catching exceptions
     bad_url = "not-a-real-dialect://user:pass@host/db"
@@ -101,6 +110,7 @@ def test_bad_url_fails_cleanly(monkeypatch):
     else:
         # If your module defers connect until later, try to connect explicitly
         import utils.db as db
+
         try:
             eng = getattr(db, "engine", None) or db.get_engine()
             with eng.connect():

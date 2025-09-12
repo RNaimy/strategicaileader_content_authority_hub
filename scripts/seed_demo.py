@@ -21,6 +21,7 @@ from sqlalchemy.orm import sessionmaker
 # Try to load .env if present (optional, no hard dependency)
 try:
     from dotenv import load_dotenv  # type: ignore
+
     load_dotenv()
 except Exception:
     pass
@@ -45,10 +46,10 @@ _module_candidates = [
     "strategicaileader_content_authority_hub.models",
 ]
 _link_attr_candidates = [
-    "ContentLink",       # Phase 8+ naming
-    "InternalLink",      # older naming in some branches
-    "Link",              # super generic fallback
-    "InternalLinkModel", # very old/experimental
+    "ContentLink",  # Phase 8+ naming
+    "InternalLink",  # older naming in some branches
+    "Link",  # super generic fallback
+    "InternalLinkModel",  # very old/experimental
 ]
 
 Site = ContentItem = ContentLink = None  # type: ignore
@@ -102,7 +103,9 @@ def get_session() -> sessionmaker:
 
 
 def upsert_site(db, domain: str) -> Site:
-    existing = db.execute(select(Site).where(Site.domain == domain)).scalar_one_or_none()
+    existing = db.execute(
+        select(Site).where(Site.domain == domain)
+    ).scalar_one_or_none()
     if existing:
         return existing
     site = Site(domain=domain, name=domain)
@@ -116,9 +119,11 @@ def flush_demo_for_site(db, site_id: int) -> None:
     # Remove only demo content for this site based on our demo URLs pattern
     demo_host_fragments = ["example.com", "x.com", "y.com", "z.com", "demo.local"]
     db.execute(
-        delete(ContentLink).where(ContentLink.from_content_id.in_(
-            select(ContentItem.id).where(ContentItem.site_id == site_id)
-        ))
+        delete(ContentLink).where(
+            ContentLink.from_content_id.in_(
+                select(ContentItem.id).where(ContentItem.site_id == site_id)
+            )
+        )
     )
     db.execute(
         delete(ContentItem).where(
@@ -142,10 +147,14 @@ def seed_demo(db, domain: str) -> None:
     items = [
         ContentItem(site_id=site.id, url=f"https://{domain}/intro", title="Intro"),
         ContentItem(site_id=site.id, url=f"https://{domain}/pillar", title="Pillar"),
-        ContentItem(site_id=site.id, url=f"https://{domain}/posts/deep-dive", title="Deep Dive"),
+        ContentItem(
+            site_id=site.id, url=f"https://{domain}/posts/deep-dive", title="Deep Dive"
+        ),
         ContentItem(site_id=site.id, url=f"https://{domain}/how-to", title="How To"),
         ContentItem(site_id=site.id, url=f"https://{domain}/faq", title="FAQ"),
-        ContentItem(site_id=site.id, url=f"https://{domain}/resources", title="Resources"),
+        ContentItem(
+            site_id=site.id, url=f"https://{domain}/resources", title="Resources"
+        ),
     ]
     db.add_all(items)
     db.commit()
@@ -154,12 +163,12 @@ def seed_demo(db, domain: str) -> None:
 
     # Internal links via relative paths (exercise the resolver)
     links = [
-        (items[0], "/pillar"),          # intro -> pillar
-        (items[1], "/posts/deep-dive"), # pillar -> deep-dive
-        (items[1], "/faq"),             # pillar -> faq
-        (items[2], "/resources"),       # deep-dive -> resources
-        (items[3], "/pillar"),          # how-to -> pillar
-        (items[4], "/resources"),       # faq -> resources
+        (items[0], "/pillar"),  # intro -> pillar
+        (items[1], "/posts/deep-dive"),  # pillar -> deep-dive
+        (items[1], "/faq"),  # pillar -> faq
+        (items[2], "/resources"),  # deep-dive -> resources
+        (items[3], "/pillar"),  # how-to -> pillar
+        (items[4], "/resources"),  # faq -> resources
     ]
 
     # Insert links; some schemas require site_id on the link row

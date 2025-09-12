@@ -25,7 +25,9 @@ class SERPClient:
 
         if self.provider == "google":
             if not (self.google_api_key and self.google_cx):
-                raise ValueError("Google CSE requires GOOGLE_CSE_API_KEY and GOOGLE_CSE_CX.")
+                raise ValueError(
+                    "Google CSE requires GOOGLE_CSE_API_KEY and GOOGLE_CSE_CX."
+                )
         elif self.provider == "bing":
             if not self.bing_api_key:
                 raise ValueError("Bing requires BING_API_KEY.")
@@ -53,7 +55,9 @@ class SERPClient:
         bing_key = os.getenv("BING_API_KEY")
 
         if google_key and google_cx:
-            return cls(provider="google", google_api_key=google_key, google_cx=google_cx)
+            return cls(
+                provider="google", google_api_key=google_key, google_cx=google_cx
+            )
         if bing_key:
             return cls(provider="bing", bing_api_key=bing_key)
 
@@ -105,7 +109,9 @@ class SERPClient:
         }
         resp = requests.get(url, params=params, timeout=15)
         if resp.status_code != 200:
-            raise RuntimeError(f"Google CSE request failed {resp.status_code}: {resp.text}")
+            raise RuntimeError(
+                f"Google CSE request failed {resp.status_code}: {resp.text}"
+            )
         return resp.json()
 
     def _search_bing(self, query: str, num: int = 5, market: str = "en-US") -> Dict:
@@ -120,7 +126,9 @@ class SERPClient:
         }
         resp = requests.get(url, headers=headers, params=params, timeout=15)
         if resp.status_code != 200:
-            raise RuntimeError(f"Bing Web Search failed {resp.status_code}: {resp.text}")
+            raise RuntimeError(
+                f"Bing Web Search failed {resp.status_code}: {resp.text}"
+            )
         return resp.json()
 
 

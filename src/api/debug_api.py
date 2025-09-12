@@ -1,5 +1,3 @@
-
-
 from __future__ import annotations
 
 from fastapi import APIRouter, Request
@@ -26,11 +24,13 @@ def list_routes(request: Request) -> dict[str, list[dict[str, object]]]:
         path = getattr(r, "path", None)
         name = getattr(r, "name", None)
         methods = sorted(list(getattr(r, "methods", []) or []))
-        details.append({
-            "path": path,
-            "name": name,
-            "methods": methods,
-        })
+        details.append(
+            {
+                "path": path,
+                "name": name,
+                "methods": methods,
+            }
+        )
 
     # Keep a simplified list too for quick grepping
     return {

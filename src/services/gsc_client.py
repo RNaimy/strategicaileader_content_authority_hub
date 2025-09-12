@@ -18,6 +18,7 @@ Notes
 * This module is import-safe even if Google client libs are not
   installed; it raises a friendly ImportError with guidance.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -106,7 +107,9 @@ class GSCClient:
         return cls(creds)
 
     @classmethod
-    def from_oauth(cls, client_secret_path: str, *, scopes: Optional[List[str]] = None) -> "GSCClient":
+    def from_oauth(
+        cls, client_secret_path: str, *, scopes: Optional[List[str]] = None
+    ) -> "GSCClient":
         if _IMPORT_ERR is not None:
             raise ImportError(
                 "Google API client libraries are not installed.\n"
@@ -115,7 +118,9 @@ class GSCClient:
         if InstalledAppFlow is None:  # pragma: no cover
             raise RuntimeError("google-auth-oauthlib is not available")
         scopes = scopes or SCOPES
-        flow = InstalledAppFlow.from_client_secrets_file(client_secret_path, scopes=scopes)
+        flow = InstalledAppFlow.from_client_secrets_file(
+            client_secret_path, scopes=scopes
+        )
         creds = flow.run_local_server(port=0)
         return cls(creds)
 
@@ -277,7 +282,11 @@ class GSCClient:
         impressions = sum(float(r.get("impressions", 0) or 0) for r in rows)
         ctr = (clicks / impressions) if impressions else 0.0
         # average of averages is not perfect; weighted could be added later
-        positions = [float(r.get("position", 0) or 0) for r in rows if r.get("position") is not None]
+        positions = [
+            float(r.get("position", 0) or 0)
+            for r in rows
+            if r.get("position") is not None
+        ]
         position = (sum(positions) / len(positions)) if positions else 0.0
         return {
             "clicks": clicks,
@@ -300,6 +309,7 @@ def quick_demo_from_service_account(
     client = GSCClient.from_service_account(json_key_path, subject=subject)
     res = client.query_site(site_url, start, end, dimensions=dimensions)
     return res, GSCClient.summarize_totals(res.rows)
+
 
 def quick_demo_from_oauth_refresh(
     client_id: str,

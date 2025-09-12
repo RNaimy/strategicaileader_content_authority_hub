@@ -1,5 +1,3 @@
-
-
 """
 Retrieval Pipeline Orchestrator (Phase 9)
 
@@ -69,10 +67,11 @@ class Ranker(Protocol):
 @dataclass(frozen=True)
 class PipelineConfig:
     """Config knobs for retrieval pipeline."""
-    max_index_chars_per_doc: int = 3000        # simple safety cap
-    search_candidates: int = 50                # first-stage recall
-    default_top_k: int = 10                    # final results to return
-    text_field: str = "title"                  # which field from ContentItem to embed
+
+    max_index_chars_per_doc: int = 3000  # simple safety cap
+    search_candidates: int = 50  # first-stage recall
+    default_top_k: int = 10  # final results to return
+    text_field: str = "title"  # which field from ContentItem to embed
 
 
 # ---------- Pipeline ----------------------------------------------------------
@@ -179,9 +178,7 @@ class RetrievalPipeline:
         """Fetch minimal fields to index from the database."""
         # Only index items that have a URL and non-empty title/content
         items: List[ContentItem] = (
-            db.query(ContentItem)
-            .filter(ContentItem.site_id == site_id)
-            .all()
+            db.query(ContentItem).filter(ContentItem.site_id == site_id).all()
         )
         docs: List[Dict[str, Any]] = []
         for it in items:

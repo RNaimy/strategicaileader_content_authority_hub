@@ -1,10 +1,11 @@
-"""index url+cluster_id; add timestamps to content_items
+"""add content_chunks and prompt_fingerprints
 
-Revision ID: cd3e89114a5c
-Revises: 53fe0cf91ebc
-Create Date: 2025-08-22 13:33:13.655856
+Revision ID: c8576fa3f80f
+Revises: 81d258beb4fc
+Create Date: 2025-08-28 14:38:35.739078
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -12,8 +13,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'cd3e89114a5c'
-down_revision: Union[str, Sequence[str], None] = '53fe0cf91ebc'
+revision: str = "c8576fa3f80f"
+down_revision: Union[str, Sequence[str], None] = "81d258beb4fc"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

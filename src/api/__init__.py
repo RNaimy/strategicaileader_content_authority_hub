@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 from .clustering_api import router as clustering_router  # type: ignore
 from .content_api import router as content_router  # type: ignore
 
+
 # --- Optional routers (guarded imports) ---
 def _optional_router(module_name: str):
     try:
@@ -26,6 +27,7 @@ def _optional_router(module_name: str):
     except Exception as e:  # pragma: no cover
         logger.debug("Optional router '%s' not available: %s", module_name, e)
         return None
+
 
 inventory_router = _optional_router("inventory_api")
 scraper_router = _optional_router("scraper_api")
@@ -44,6 +46,7 @@ __all__ = [
     "get_routers",
 ]
 
+
 def get_routers():
     """Return a list of routers that should be mounted."""
     routers = [clustering_router, content_router]
@@ -54,7 +57,12 @@ def get_routers():
             routers.append(r)
 
     # Retrieval is opt-in via env flag and must be importable
-    enable_retrieval = os.getenv("ENABLE_RETRIEVAL", "").strip().lower() in {"1", "true", "yes", "on"}
+    enable_retrieval = os.getenv("ENABLE_RETRIEVAL", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
     if enable_retrieval and retrieval_router is not None:
         routers.append(retrieval_router)
         logger.info("retrieval: enabled and mounted")

@@ -2,6 +2,7 @@
 Ensure the project's `src/` directory is on `sys.path` so imports like
 `import src.api...` work from any entrypoint (pytest, scripts, REPL).
 """
+
 from __future__ import annotations
 
 import os

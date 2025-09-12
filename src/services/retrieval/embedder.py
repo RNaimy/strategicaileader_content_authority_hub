@@ -1,5 +1,3 @@
-
-
 """
 Lightweight embedding abstraction for Phase 9: Semantic Retrieval.
 
@@ -35,6 +33,7 @@ from typing import Iterable, List, Sequence
 # Base interface / contracts
 # ---------------------------
 
+
 class Embedder:
     """Minimal embedding interface used across the retrieval module."""
 
@@ -58,6 +57,7 @@ class Embedder:
 # Local, dependency-free embedder
 # ---------------------------
 
+
 @dataclass
 class LocalHasherEmbedder(Embedder):
     """
@@ -71,6 +71,7 @@ class LocalHasherEmbedder(Embedder):
     This is *not* semantically meaningful like a real embedder, but it's
     perfectly stable and fast for tests and local development.
     """
+
     dim: int = 384
     model_name: str = "local/sha256-hash-embedder"
 
@@ -99,6 +100,7 @@ class LocalHasherEmbedder(Embedder):
 # OpenAI provider (optional)
 # ---------------------------
 
+
 class OpenAIEmbedder(Embedder):
     """
     Thin wrapper over OpenAI embeddings, imported lazily.
@@ -107,6 +109,7 @@ class OpenAIEmbedder(Embedder):
       - `pip install openai>=1`
       - OPENAI_API_KEY env var
     """
+
     def __init__(self, model_name: str = "text-embedding-3-small") -> None:
         self.model_name = model_name
         # Lazy import to avoid hard dependency in CI
@@ -159,6 +162,7 @@ class OpenAIEmbedder(Embedder):
 # ---------------------------
 # Factory
 # ---------------------------
+
 
 def get_embedder() -> Embedder:
     """

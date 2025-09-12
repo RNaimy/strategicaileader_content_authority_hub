@@ -1,5 +1,3 @@
-
-
 import math
 from datetime import datetime, timedelta, timezone
 
@@ -30,9 +28,9 @@ def test_today_scores_one():
 @pytest.mark.parametrize(
     "days_ago, expected, tol",
     [
-        (7, 2 ** (-7 / 30), 0.06),     # ~0.851
-        (30, 0.5, 0.03),               # half-life
-        (60, 0.25, 0.03),              # two half-lives
+        (7, 2 ** (-7 / 30), 0.06),  # ~0.851
+        (30, 0.5, 0.03),  # half-life
+        (60, 0.25, 0.03),  # two half-lives
     ],
 )
 def test_decay_matches_half_life(days_ago, expected, tol):
@@ -40,9 +38,9 @@ def test_decay_matches_half_life(days_ago, expected, tol):
     then = datetime.now(timezone.utc) - timedelta(days=days_ago)
     score = scorer.score_published_date(_rfc3339(then))
     assert math.isfinite(score), "score should be finite"
-    assert abs(score - expected) <= tol, (
-        f"expected ~{expected:.3f} at {days_ago}d, got {score:.3f}"
-    )
+    assert (
+        abs(score - expected) <= tol
+    ), f"expected ~{expected:.3f} at {days_ago}d, got {score:.3f}"
 
 
 @pytest.mark.unit

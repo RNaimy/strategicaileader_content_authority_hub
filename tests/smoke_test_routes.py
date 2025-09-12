@@ -9,11 +9,13 @@ from urllib.parse import urlparse
 
 BASE = "http://127.0.0.1:8001"
 
+
 def get_paths() -> Dict[str, dict]:
     r = requests.get(f"{BASE}/openapi.json", timeout=10)
     r.raise_for_status()
     data = r.json()
     return data.get("paths", {})
+
 
 def expect_any(paths: Dict[str, dict], prefixes: List[str]) -> List[str]:
     found = []
@@ -24,10 +26,12 @@ def expect_any(paths: Dict[str, dict], prefixes: List[str]) -> List[str]:
                 break
     return sorted(set(found))
 
+
 def ping(url: str, method: str = "GET", **kwargs) -> Tuple[int, str]:
     func = getattr(requests, method.lower())
     r = func(f"{BASE}{url}", timeout=20, **kwargs)
     return r.status_code, r.text
+
 
 # --- Helper functions for additional endpoint checks ---
 def json_get(url: str, method: str = "GET", **kwargs):
@@ -52,6 +56,7 @@ def _no_substring_dupes(terms: List[str]) -> bool:
 # --- Pytest-style tests for endpoints ---
 import pytest
 
+
 def test_clusters_topics_stopwords_dedupe():
     resp = json_get(
         "/clusters/topics?domain=strategicaileader.com"
@@ -62,7 +67,9 @@ def test_clusters_topics_stopwords_dedupe():
     assert clusters, "No clusters returned"
     label_terms = clusters[0].get("label_terms", [])
     assert label_terms, "First cluster has no label_terms"
-    assert _no_substring_dupes(label_terms), f"label_terms have substring duplicates: {label_terms}"
+    assert _no_substring_dupes(
+        label_terms
+    ), f"label_terms have substring duplicates: {label_terms}"
 
 
 def test_internal_links_with_exclude_regex():
@@ -72,10 +79,15 @@ def test_internal_links_with_exclude_regex():
         "&fallback_when_empty=true"
     )
     suggestions = resp.get("suggestions", [])
-    assert isinstance(suggestions, list) and len(suggestions) > 0, "No suggestions returned"
+    assert (
+        isinstance(suggestions, list) and len(suggestions) > 0
+    ), "No suggestions returned"
     for s in suggestions:
         target = s.get("target_url", "")
-        assert "/tag/" not in target and "/category/" not in target, f"target_url contains excluded path: {target}"
+        assert (
+            "/tag/" not in target and "/category/" not in target
+        ), f"target_url contains excluded path: {target}"
+
 
 def main() -> int:
     print("Waiting for server ...")
@@ -139,10 +151,16 @@ def main() -> int:
         else:
             lt = clusters[0].get("label_terms", [])
             if not lt:
-                print("  !! /clusters/topics first cluster had no label_terms", file=sys.stderr)
+                print(
+                    "  !! /clusters/topics first cluster had no label_terms",
+                    file=sys.stderr,
+                )
                 ok = False
             elif not _no_substring_dupes(lt):
-                print(f"  !! label_terms contain substring duplicates: {lt}", file=sys.stderr)
+                print(
+                    f"  !! label_terms contain substring duplicates: {lt}",
+                    file=sys.stderr,
+                )
                 ok = False
     except Exception as e:
         print(f"Error calling /clusters/topics: {e}", file=sys.stderr)
@@ -158,13 +176,25 @@ def main() -> int:
         )
         suggestions = links.get("suggestions", [])
         if not isinstance(suggestions, list) or len(suggestions) == 0:
-            print("  !! /clusters/internal-links returned no suggestions", file=sys.stderr)
+            print(
+                "  !! /clusters/internal-links returned no suggestions", file=sys.stderr
+            )
             ok = False
         else:
             # Validate excluded patterns are not present in targets
-            bad = [s for s in suggestions if ("/tag/" in s.get("target_url", "") or "/category/" in s.get("target_url", ""))]
+            bad = [
+                s
+                for s in suggestions
+                if (
+                    "/tag/" in s.get("target_url", "")
+                    or "/category/" in s.get("target_url", "")
+                )
+            ]
             if bad:
-                print(f"  !! exclude_regex did not filter some targets (showing 3): {bad[:3]}", file=sys.stderr)
+                print(
+                    f"  !! exclude_regex did not filter some targets (showing 3): {bad[:3]}",
+                    file=sys.stderr,
+                )
                 ok = False
     except Exception as e:
         print(f"Error calling /clusters/internal-links: {e}", file=sys.stderr)
@@ -172,6 +202,7 @@ def main() -> int:
 
     print("RESULT:", "PASS" if ok else "FAIL")
     return 0 if ok else 2
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

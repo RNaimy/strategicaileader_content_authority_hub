@@ -17,6 +17,11 @@ except Exception:
     ContentChunk = None  # type: ignore
     HAS_CONTENT_CHUNK = False
 
+from fastapi.responses import StreamingResponse
+from sqlalchemy import func
+import io
+import csv
+
 router = APIRouter()
 
 # ---------------------------
@@ -80,7 +85,7 @@ def _extractability_score(chunk: str) -> float:
     score += 0.4 if length_ok else 0.0
     score += 0.4 if good_end else 0.0
     score += 0.2 if has_lists else 0.0
-    return round(score, 3)
+    return round(score, 0.3)
 
 # ---------------------------
 # Routes
@@ -186,12 +191,12 @@ def semantic_page(item_id: int = Path(..., ge=1)) -> Dict[str, Any]:
 
         result: Dict[str, Any] = {"id": it.id, "url": it.url, "title": it.title or ""}
         if HAS_CONTENT_CHUNK:
-            rows = db.query(ContentChunk).filter(ContentChunk.content_item_id == it.id).order_by(ContentChunk.chunk_index.asc()).all()
+            rows = db.query(ContentChunk).filter(ContentChunk.content_item_id == it.id).order_by(ContentChunk.chunk_order.asc()).all()
             chunks_out: List[Dict[str, Any]] = []
             for r in rows:
                 row_out = {
-                    "chunk_index": getattr(r, "chunk_index", None),
-                    "tokens": getattr(r, "tokens", None),
+                    "chunk_order": getattr(r, "chunk_order", getattr(r, "chunk_index", None)),
+                    "token_count": getattr(r, "token_count", getattr(r, "tokens", None)),
                     "density_score": getattr(r, "density_score", None) if hasattr(r, "density_score") else None,
                     "overlap_score": getattr(r, "overlap_score", None) if hasattr(r, "overlap_score") else None,
                     "extractability_score": getattr(r, "extractability_score", None) if hasattr(r, "extractability_score") else None,
@@ -239,3 +244,50 @@ def semantic_dashboard(domain: str = Query(...)) -> Dict[str, Any]:
                     quick_wins.append({"url": it.url, "title": it.title or "", "reason": "High density, low overlap"})
 
         return {"pages": pages_out, "quick_wins": quick_wins}
+
+@router.get("/semantic/export")
+def semantic_export(domain: str = Query(...)) -> StreamingResponse:
+    """
+    Export a CSV with one row per page:
+    url,title,avg_overlap,avg_density,chunks
+    """
+    with get_session() as db:
+        site = _get_site(db, domain)
+        if not site:
+            raise HTTPException(status_code=404, detail="Site not found")
+
+        # Build aggregated metrics per page
+        # LEFT JOIN so pages with no chunks still appear
+        q = (
+            db.query(
+                ContentItem.url.label("url"),
+                (ContentItem.title).label("title"),
+                func.avg(ContentChunk.overlap_score).label("avg_overlap"),
+                func.avg(ContentChunk.density_score).label("avg_density"),
+                func.count(ContentChunk.id).label("chunks"),
+            )
+            .outerjoin(ContentChunk, ContentChunk.content_item_id == ContentItem.id)
+            .filter(ContentItem.site_id == site.id)
+            .group_by(ContentItem.id)
+            .order_by(ContentItem.id.asc())
+        )
+
+        # Stream CSV
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(["url", "title", "avg_overlap", "avg_density", "chunks"])
+        for row in q.all():
+            writer.writerow([
+                row.url or "",
+                row.title or "",
+                f"{row.avg_overlap:.3f}" if row.avg_overlap is not None else "",
+                f"{row.avg_density:.3f}" if row.avg_density is not None else "",
+                int(row.chunks or 0),
+            ])
+        buf.seek(0)
+
+        filename = f"phase10_semantic_export_{domain}.csv"
+        headers = {
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        }
+        return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv", headers=headers)

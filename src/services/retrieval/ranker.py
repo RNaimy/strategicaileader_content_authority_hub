@@ -1,5 +1,3 @@
-
-
 """Lightweight ranking utilities for semantic retrieval.
 
 This module provides:
@@ -9,6 +7,7 @@ This module provides:
 
 It’s intentionally dependency-free and fast enough for tests / small corpora.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -20,10 +19,12 @@ import re
 # Common types
 # ----------------------------
 
+
 @dataclass(frozen=True)
 class ScoredHit:
     id: int
     score: float
+
 
 # ----------------------------
 # Tiny tokenizer
@@ -32,16 +33,40 @@ class ScoredHit:
 _TOKEN_RE = re.compile(r"[A-Za-z0-9]+")
 _STOP = {
     # minimal list, just enough to reduce noise
-    "a","an","the","and","or","of","to","in","on","for","with","by",
-    "is","are","was","were","be","as","at","from","that","this","it",
+    "a",
+    "an",
+    "the",
+    "and",
+    "or",
+    "of",
+    "to",
+    "in",
+    "on",
+    "for",
+    "with",
+    "by",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "as",
+    "at",
+    "from",
+    "that",
+    "this",
+    "it",
 }
+
 
 def _tokenize(text: str) -> List[str]:
     return [t.lower() for t in _TOKEN_RE.findall(text) if t.lower() not in _STOP]
 
+
 # ----------------------------
 # BM25 Ranker (Okapi)
 # ----------------------------
+
 
 class BM25Ranker:
     """Very small BM25 implementation.
@@ -103,15 +128,15 @@ class BM25Ranker:
     def search(self, query: str, top_k: int = 10) -> List[ScoredHit]:
         if self._N == 0:
             return []
-        pairs = [
-            (doc_id, self.score(query, doc_id)) for doc_id in self._tf.keys()
-        ]
+        pairs = [(doc_id, self.score(query, doc_id)) for doc_id in self._tf.keys()]
         pairs.sort(key=lambda x: x[1], reverse=True)
         return [ScoredHit(id=d, score=s) for d, s in pairs[:top_k] if s > 0]
+
 
 # ----------------------------
 # Reciprocal Rank Fusion (RRF)
 # ----------------------------
+
 
 def rrf_combine(
     ranked_lists: Sequence[Sequence[ScoredHit]],
@@ -130,9 +155,11 @@ def rrf_combine(
     out.sort(key=lambda h: h.score, reverse=True)
     return out[:k]
 
+
 # ----------------------------
 # Hybrid ranker
 # ----------------------------
+
 
 class HybridRanker:
     """Fuse semantic vector search with BM25 via RRF.
@@ -145,7 +172,9 @@ class HybridRanker:
         self.semantic_index = semantic_index
         self.bm25 = bm25 or BM25Ranker()
 
-    def add_document(self, doc_id: int, text: str, vector: Optional[Sequence[float]] = None) -> None:
+    def add_document(
+        self, doc_id: int, text: str, vector: Optional[Sequence[float]] = None
+    ) -> None:
         # semantic_index is responsible for consuming vectors; we try to call a common interface
         if hasattr(self.semantic_index, "add"):
             if vector is not None:
@@ -161,6 +190,7 @@ class HybridRanker:
             sem_hits = self.semantic_index.search(query, top_k=top_k)  # type: ignore[attr-defined]
         lex_hits = self.bm25.search(query, top_k=top_k)
         return rrf_combine([sem_hits, lex_hits], k=top_k, rank_constant=rrf_k)
+
 
 __all__ = [
     "ScoredHit",

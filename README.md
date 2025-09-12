@@ -18,6 +18,13 @@ python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
+### Starting the App
+pkill -f "uvicorn.*8001" || true
+kill -9 $(lsof -ti:8001) 2>/dev/null || true
+cd ~/Documents/python-projects/strategicaileader_content_authority_hub
+source venv/bin/activate
+export DATABASE_URL=sqlite:///./data/app.db
+python -m uvicorn src.main:app --reload --port 8001
 
 ### Environment Variables
 Set at least the following (examples shown for the hash test provider):
@@ -29,14 +36,14 @@ export APP_DEBUG=1                    # optional: verbose logs
 # If using OpenAI:
 # export OPENAI_API_KEY=sk-...
 # --- Google Analytics 4 (GA4) OAuth ---
-GA4_CLIENT_ID=...
-GA4_CLIENT_SECRET=...
-GA4_REFRESH_TOKEN=...
+export GA4_CLIENT_ID=...
+export GA4_CLIENT_SECRET=...
+export GA4_REFRESH_TOKEN=...
 
 # --- Google Search Console (GSC) OAuth ---
-GSC_CLIENT_ID=...
-GSC_CLIENT_SECRET=...
-GSC_REFRESH_TOKEN=...
+export GSC_CLIENT_ID=...
+export GSC_CLIENT_SECRET=...
+export GSC_REFRESH_TOKEN=...
 
 # If using service accounts:
 # export GOOGLE_APPLICATION_CREDENTIALS=./keys/ga4-service.json
@@ -135,6 +142,24 @@ Example to export the graph to a local file:
 ```bash
 mkdir -p graph/export
 curl -s http://localhost:8000/graph/export -o graph/export/graph.json
+```
+
+### Phase 10: Semantic Overlap & Density (SOD + Extractability)
+
+Phase 10 adds semantic content scoring to evaluate how well pages perform for both search engines and LLMs.  
+You can now measure overlap, density, and extractability per chunk and export results for analysis.
+
+- `POST /content/chunk` — split content into chunks for scoring.
+- `POST /semantic/score` — compute overlap, density, and extractability scores for all chunks of a domain.
+- `GET /semantic/page/{id}` — inspect chunk-level scores for a single content item.
+- `GET /semantic/dashboard?domain=...` — summary view with page counts, quick wins, and scoring distribution.
+- `GET /semantic/export?domain=...` — export scores to CSV with columns: url, title, avg_overlap, avg_density, extractability, chunks.
+
+Example export to CSV:
+```bash
+curl -s -D headers.txt "http://127.0.0.1:8001/semantic/export?domain=strategicaileader.com" -o phase10_semantic_export.csv
+head -n 5 phase10_semantic_export.csv
+```
 
 ## Quickstart (happy path)
 ```bash
@@ -198,16 +223,16 @@ curl -s "$BASE/content/embedding-info" | jq .
 
 echo
 echo "== Deterministic preview (k=8, seed=42) =="
-curl -s "$BASE/clusters/preview?domain=$DOMAIN&amp;k=8&amp;seed=42" | jq '.k_effective'
+curl -s "$BASE/clusters/preview?domain=$DOMAIN&k=8&seed=42" | jq '.k_effective'
 
 echo
 echo "== Deterministic topics (extra stopwords: ai, seo, saas) =="
-curl -s "$BASE/clusters/topics?domain=$DOMAIN&amp;k=8&amp;seed=42&amp;stopwords_extra=ai,seo,saas&amp;dedupe_substrings=true" | jq '.clusters[0]'
+curl -s "$BASE/clusters/topics?domain=$DOMAIN&k=8&seed=42&stopwords_extra=ai,seo,saas&dedupe_substrings=true" | jq '.clusters[0]'
 
 echo
 echo "== Internal links excluding tag/category pages =="
 # exclude_regex is URL-encoded: ^/tag/|/category/
-curl -s "$BASE/clusters/internal-links?domain=$DOMAIN&amp;per_item=3&amp;min_sim=0.5&amp;exclude_regex=%5E/tag/|/category/" | jq '.suggestions[:10]'
+curl -s "$BASE/clusters/internal-links?domain=$DOMAIN&per_item=3&min_sim=0.5&exclude_regex=%5E/tag/|/category/" | jq '.suggestions[:10]'
 
 echo
 echo "== Commit cluster assignments (k=8, seed=42) =="
@@ -263,10 +288,10 @@ pytest -q tests/test_graph_api.py tests/test_graph_export.py
 Focused examples you can run manually:
 ```bash
 # Topics with custom stopwords and dedupe
-curl -s "$BASE/clusters/topics?domain=$DOMAIN&amp;k=8&amp;seed=42&amp;stopwords_extra=ai,seo,saas&amp;dedupe_substrings=true" | jq '.clusters[0]'
+curl -s "$BASE/clusters/topics?domain=$DOMAIN&k=8&seed=42&stopwords_extra=ai,seo,saas&dedupe_substrings=true" | jq '.clusters[0]'
 
 # Internal links excluding tag/category pages
-curl -s "$BASE/clusters/internal-links?domain=$DOMAIN&amp;per_item=3&amp;min_sim=0.5&amp;exclude_regex=%5E/tag/|/category/" | jq '.suggestions[:10]'
+curl -s "$BASE/clusters/internal-links?domain=$DOMAIN&per_item=3&min_sim=0.5&exclude_regex=%5E/tag/|/category/" | jq '.suggestions[:10]'
 ```
 
 ## Provider Notes

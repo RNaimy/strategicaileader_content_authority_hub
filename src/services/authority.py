@@ -12,6 +12,7 @@ except Exception:  # pragma: no cover
 # Optional (env-dependent). If unavailable, we fall back to a regex-based entity extractor.
 try:  # pragma: no cover
     import spacy  # type: ignore
+
     _NLP = spacy.load("en_core_web_sm")  # small model if installed
 except Exception:  # pragma: no cover
     _NLP = None
@@ -61,7 +62,9 @@ def extract_jsonld(html: str) -> Tuple[bool, List[dict]]:
     return present, blocks
 
 
-def detect_byline(html: str, text: str, jsonld_blocks: List[dict]) -> Tuple[int, List[str]]:
+def detect_byline(
+    html: str, text: str, jsonld_blocks: List[dict]
+) -> Tuple[int, List[str]]:
     authors: List[str] = []
     # JSON-LD author fields
     for blk in jsonld_blocks:
@@ -100,7 +103,9 @@ def detect_byline(html: str, text: str, jsonld_blocks: List[dict]) -> Tuple[int,
     return len(out), out
 
 
-def count_external_links(html: str, base_url: Optional[str] = None) -> Tuple[int, List[str]]:
+def count_external_links(
+    html: str, base_url: Optional[str] = None
+) -> Tuple[int, List[str]]:
     if not html:
         return 0, []
     if BeautifulSoup is None:
@@ -143,7 +148,11 @@ def extract_entities(text: str) -> List[str]:
     if _NLP is not None:  # pragma: no cover (depends on env)
         try:
             doc = _NLP(text)
-            ents = [e.text.strip() for e in doc.ents if e.label_ in {"PERSON", "ORG", "GPE", "PRODUCT", "WORK_OF_ART"}]
+            ents = [
+                e.text.strip()
+                for e in doc.ents
+                if e.label_ in {"PERSON", "ORG", "GPE", "PRODUCT", "WORK_OF_ART"}
+            ]
             # dedupe
             out: List[str] = []
             seen = set()

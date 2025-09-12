@@ -2,10 +2,12 @@ import json
 import tempfile
 from fastapi.testclient import TestClient
 
+
 # Helper to build an isolated client with a fresh temp store
 def make_client(monkeypatch):
     import importlib
     import src.api.brands_api as brands_api
+
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
     tmp.write(json.dumps({"brands": []}).encode("utf-8"))
     tmp.flush()
@@ -14,10 +16,12 @@ def make_client(monkeypatch):
     importlib.reload(brands_api)
     return TestClient(brands_api.app)
 
+
 # Helper to build a client when the JSON store is corrupt
 def make_client_with_corrupt_store(monkeypatch):
     import importlib
     import src.api.brands_api as brands_api
+
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".json")
     # write invalid JSON
     tmp.write(b"{ this is not json ]")
@@ -26,6 +30,7 @@ def make_client_with_corrupt_store(monkeypatch):
         monkeypatch.setattr(brands_api, "BRANDS_JSON", tmp.name, raising=True)
     importlib.reload(brands_api)
     return TestClient(brands_api.app)
+
 
 def test_brands_crud(monkeypatch):
     # Lazy import so we can monkeypatch the path before app loads data
@@ -52,7 +57,11 @@ def test_brands_crud(monkeypatch):
     assert r.json() == {"brands": []} or "brands" in r.json()
 
     # Create
-    new_brand = {"key": "strategicaileader", "name": "StrategicAILeader", "site_url": "https://www.strategicaileader.com"}
+    new_brand = {
+        "key": "strategicaileader",
+        "name": "StrategicAILeader",
+        "site_url": "https://www.strategicaileader.com",
+    }
     r = client.post("/api/brands", json=new_brand)
     assert r.status_code in (200, 201)
 
@@ -132,7 +141,9 @@ def test_create_requires_minimal_fields(monkeypatch):
     client = make_client(monkeypatch)
 
     # Missing key
-    resp = client.post("/api/brands", json={"name": "No Key", "site_url": "https://example.com"})
+    resp = client.post(
+        "/api/brands", json={"name": "No Key", "site_url": "https://example.com"}
+    )
     assert resp.status_code == 422  # FastAPI/Pydantic validation error
 
     # Missing name (some impls allow minimal create with just 'key')

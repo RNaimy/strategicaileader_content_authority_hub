@@ -7,11 +7,13 @@ from datetime import datetime
 
 router = APIRouter(prefix="/inventory", tags=["inventory"])
 
+
 # ---- Health -----------------------------------------------------------------
 @router.get("/health")
 async def inventory_health() -> Dict[str, Any]:
     # Keep simple and consistent with root health style seen elsewhere
     return {"ok": True, "db": True}
+
 
 # ---- Ingest -----------------------------------------------------------------
 @router.post("/ingest")
@@ -49,6 +51,7 @@ async def ingest_inventory(
         "estimated_items": processed,
     }
 
+
 # ---- List -------------------------------------------------------------------
 @router.get("/list")
 async def list_inventory(
@@ -72,11 +75,17 @@ async def list_inventory(
                 "url": f"{base_url}/item-{i}/",
                 "title": f"Item {i}",
                 "word_count": 150 + (i % 75),
-                "schema_types": ["BreadcrumbList", "CollectionPage", "Person", "WebSite"],
+                "schema_types": [
+                    "BreadcrumbList",
+                    "CollectionPage",
+                    "Person",
+                    "WebSite",
+                ],
                 "freshness_score": round(0.85 + ((i % 17) * 0.009), 12),
             }
         )
     return {"total": limit, "items": items}
+
 
 # ---- Search -----------------------------------------------------------------
 @router.get("/search")
@@ -99,11 +108,17 @@ async def search_inventory(
                 "url": f"{base_url}/search/{q}/result-{i}/",
                 "title": f"{q.title()} Result {i}",
                 "word_count": 200 + (i % 90),
-                "schema_types": ["BreadcrumbList", "CollectionPage", "Person", "WebSite"],
+                "schema_types": [
+                    "BreadcrumbList",
+                    "CollectionPage",
+                    "Person",
+                    "WebSite",
+                ],
                 "freshness_score": round(0.90 + ((i % 13) * 0.007), 12),
             }
         )
     return {"total": limit, "items": items}
+
 
 # ---- Stats ------------------------------------------------------------------
 @router.get("/stats")
@@ -116,12 +131,24 @@ async def inventory_stats(
     # Provide deterministic buckets like your previous outputs
     if "liasflowers" in domain:
         total = 86
-        buckets = {"hot_>=0.85": 13, "fresh_0.60_0.84": 3, "warm_0.40_0.59": 0, "stale_<0.40": 70, "missing": 0}
+        buckets = {
+            "hot_>=0.85": 13,
+            "fresh_0.60_0.84": 3,
+            "warm_0.40_0.59": 0,
+            "stale_<0.40": 70,
+            "missing": 0,
+        }
         avg_wc = 1347.1279069767443
         with_schema = 86
     else:
         total = 295
-        buckets = {"hot_>=0.85": 187, "fresh_0.60_0.84": 106, "warm_0.40_0.59": 2, "stale_<0.40": 0, "missing": 0}
+        buckets = {
+            "hot_>=0.85": 187,
+            "fresh_0.60_0.84": 106,
+            "warm_0.40_0.59": 2,
+            "stale_<0.40": 0,
+            "missing": 0,
+        }
         avg_wc = 556.3559322033898
         with_schema = 295
     return {
@@ -130,6 +157,7 @@ async def inventory_stats(
         "avg_word_count": avg_wc,
         "with_schema_types": with_schema,
     }
+
 
 # ---- Purge non-posts --------------------------------------------------------
 @router.post("/purge-nonposts")
@@ -149,6 +177,7 @@ async def purge_nonposts(
         "dry_run": dry_run,
     }
 
+
 # ---- Debug: sitemap ----------------------------------------------------------
 @router.get("/debug/sitemap")
 async def debug_sitemap(
@@ -162,7 +191,9 @@ async def debug_sitemap(
     attempted = [source]
     # If it looks like a root sitemap, include a common posts sitemap try:
     if source.rstrip("/").endswith("sitemap.xml"):
-        attempted.append(source.replace("://", "://www.").rstrip("/") + "/post-sitemap.xml")
+        attempted.append(
+            source.replace("://", "://www.").rstrip("/") + "/post-sitemap.xml"
+        )
 
     sample_urls = [
         "https://www.example.com/blog/",
@@ -183,6 +214,7 @@ async def debug_sitemap(
         "found_count": found_n,
         "sample": sample_urls[:found_n],
     }
+
 
 # ---- Export CSV --------------------------------------------------------------
 @router.get("/export.csv")

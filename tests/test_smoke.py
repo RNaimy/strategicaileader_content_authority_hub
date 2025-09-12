@@ -26,6 +26,7 @@ MODULES = [
     "utils.seo_rules",
 ]
 
+
 def test_import_all_modules():
     failed = []
     for name in MODULES:

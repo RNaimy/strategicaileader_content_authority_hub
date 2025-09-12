@@ -1,5 +1,3 @@
-
-
 from __future__ import annotations
 
 import os
@@ -14,6 +12,7 @@ from sqlalchemy import create_engine, text, event
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
 from sqlalchemy.engine import Engine
 
+
 # ---------------------------------------------------------------------------
 # Helper to dispose SQLAlchemy engine safely (for interpreter shutdown/reconfig)
 def _dispose_current_engine() -> None:
@@ -27,14 +26,18 @@ def _dispose_current_engine() -> None:
         # If engine isn't defined yet or already disposed, ignore.
         pass
 
+
 # ---------------------------------------------------------------------------
 # Unified database setup for SQLite (local) and Postgres (Supabase)
 # ---------------------------------------------------------------------------
 # One env var everywhere (read from real env and .env)
 load_dotenv()
-DEFAULT_SQLITE_URL = "sqlite:///strategicaileader.db"  # keep DB in project root by default
+DEFAULT_SQLITE_URL = (
+    "sqlite:///strategicaileader.db"  # keep DB in project root by default
+)
 DATABASE_URL: str = os.getenv("DATABASE_URL", DEFAULT_SQLITE_URL)
 ECHO_SQL: bool = os.getenv("SQL_ECHO", "0") in {"1", "true", "True"}
+
 
 def _make_engine(url: str, *, echo: bool) -> Engine:
     is_sqlite = url.startswith("sqlite")
@@ -51,6 +54,7 @@ def _make_engine(url: str, *, echo: bool) -> Engine:
     eng = create_engine(url, **engine_kwargs)
 
     if is_sqlite:
+
         @event.listens_for(eng, "connect")
         def _set_sqlite_pragma(dbapi_connection, connection_record):  # type: ignore[unused-ignore]
             cur = dbapi_connection.cursor()
@@ -58,6 +62,7 @@ def _make_engine(url: str, *, echo: bool) -> Engine:
             cur.close()
 
     if is_postgres:
+
         @event.listens_for(eng, "connect")
         def _set_pg_timezone(dbapi_connection, connection_record):  # type: ignore[unused-ignore]
             cur = dbapi_connection.cursor()
@@ -70,6 +75,7 @@ def _make_engine(url: str, *, echo: bool) -> Engine:
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 
     return eng
+
 
 engine = _make_engine(DATABASE_URL, echo=ECHO_SQL)
 # Ensure all pooled connections are closed at process exit to avoid ResourceWarning
@@ -84,11 +90,13 @@ SessionLocal = sessionmaker(
     future=True,
 )
 
- # Declarative base for models
+# Declarative base for models
 Base = declarative_base()
 
 # Expose metadata for Alembic and other tooling
 get_metadata = lambda: Base.metadata
+
+
 def reconfigure_database(url: str | None = None, *, echo: bool | None = None) -> None:
     """Rebuild the global engine/session using a new URL or echo flag.
     Useful for tests or switching between SQLite and Postgres.

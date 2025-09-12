@@ -4,7 +4,10 @@ from urllib.parse import urlparse
 
 DB_URL = os.getenv("DATABASE_URL", "sqlite:///./data/app.db")
 parsed = urlparse(DB_URL)
-db_path = parsed.path.lstrip("/") if parsed.scheme.startswith("sqlite") else "data/app.db"
+db_path = (
+    parsed.path.lstrip("/") if parsed.scheme.startswith("sqlite") else "data/app.db"
+)
+
 
 def test_schema_tables_exist():
     # use the dev DB file created by Alembic
@@ -37,6 +40,8 @@ def test_schema_tables_exist():
         # Soft-check optional tables; don't fail the test if they are not present yet
         missing_optional = optional - tables
         if missing_optional:
-            print(f"[schema note] Optional tables not present yet: {sorted(missing_optional)}")
+            print(
+                f"[schema note] Optional tables not present yet: {sorted(missing_optional)}"
+            )
     finally:
         con.close()
